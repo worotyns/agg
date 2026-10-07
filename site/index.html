@@ -180,10 +180,23 @@ agg_formula_value{site="shop",formula="aov"} 182.4</code></pre>
 
     <section class="wrap" id="start">
       <h2>Quick start</h2>
-<pre><code># build and run (Go 1.27+), or use the Dockerfile
-git clone https://github.com/worotyns/agg && cd agg
-go build -o agg ./cmd/agg
-./agg serve            # prints the admin token, UI on http://localhost:8080</code></pre>
+      <p>Run it one of three ways. The first start prints an admin token; the UI is on port 8080.</p>
+      <h3>Docker</h3>
+<pre><code>docker run -d --name agg -p 8080:8080 -v agg-data:/data ghcr.io/worotyns/agg:latest
+docker logs agg        # shows the admin token</code></pre>
+      <h3>Fly.io</h3>
+<pre><code>git clone https://github.com/worotyns/agg && cd agg
+# edit app and AGG_PUBLIC_URL in deploy/fly/fly.toml, then:
+fly apps create agg-example
+fly volumes create agg_data --size 1 --region waw -c deploy/fly/fly.toml
+fly secrets set AGG_ADMIN_TOKEN=$(openssl rand -hex 24) -c deploy/fly/fly.toml
+fly deploy -c deploy/fly/fly.toml</code></pre>
+      <p class="note">One machine with a volume for the SQLite database; details in the
+        <a href="https://github.com/worotyns/agg#deploy-on-flyio">README</a>.</p>
+      <h3>From source</h3>
+<pre><code>git clone https://github.com/worotyns/agg && cd agg
+go build -o agg ./cmd/agg   # Go 1.27+
+./agg serve                 # prints the admin token, UI on http://localhost:8080</code></pre>
       <p>Log in, create a site and add its snippet to your pages:</p>
 <pre><code>&lt;script async src="https://agg.example.com/agg.js" data-site="pk_…"&gt;&lt;/script&gt;</code></pre>
       <p>Page views, visitors, top 10 pages and referrers work right away. For product insights, send events from your

@@ -29,6 +29,7 @@ import (
 type Config struct {
 	PublicURL            string // optional, used in snippets and scrape configs; derived from the request otherwise
 	TrustProxy           bool   // use X-Forwarded-For / X-Forwarded-Proto
+	ClientIPHeader       string // header a proxy sets to the client IP (Fly-Client-IP, CF-Connecting-IP); wins over X-Forwarded-For
 	InternalMetricsToken string // enables /internal/metrics when set
 	Version              string
 }
@@ -246,6 +247,13 @@ func readJSON(w http.ResponseWriter, r *http.Request, v any) bool {
 }
 
 func (s *Server) clientIP(r *http.Request) string {
+	// A dedicated header is overwritten by the proxy on every request, unlike the first X-Forwarded-For entry,
+	// which a client can send itself.
+	if s.cfg.ClientIPHeader != "" {
+		if ip := strings.TrimSpace(r.Header.Get(s.cfg.ClientIPHeader)); ip != "" {
+			return ip
+		}
+	}
 	if s.cfg.TrustProxy {
 		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 			return strings.TrimSpace(strings.Split(xff, ",")[0])

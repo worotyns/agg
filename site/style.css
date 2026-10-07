@@ -103,3 +103,6 @@ footer {
   .steps { grid-template-columns: 1fr; }
   .lead { font-size: 18px; }
 }
+
+#start h3 { margin-top: 28px; }
+.note { color: var(--text-2); font-size: 15px; margin-top: -6px; }

@@ -1,0 +1,48 @@
+# Example Fly.io deployment of agg: one machine with a volume for the SQLite database.
+# Steps are in README.md ("Deploy on Fly.io"). Change `app` (names are global) and AGG_PUBLIC_URL.
+
+app = "agg-example"
+primary_region = "waw"
+# agg flushes buffered events on SIGINT/SIGTERM; give it time to finish.
+kill_signal = "SIGTERM"
+kill_timeout = "10s"
+
+# The published multi-arch image. To build from source instead, remove this section and run
+# `fly deploy --config deploy/fly/fly.toml --dockerfile Dockerfile` from the repository root.
+[build]
+  image = "ghcr.io/worotyns/agg:latest"
+
+[env]
+  AGG_PUBLIC_URL = "https://agg-example.fly.dev"
+  # Fly's proxy sets Fly-Client-IP on every request; rate limits and meta.ip use it.
+  AGG_CLIENT_IP_HEADER = "Fly-Client-IP"
+  # X-Forwarded-Proto tells agg the public scheme is https (secure cookies).
+  AGG_TRUST_PROXY = "true"
+  # AGG_DB=/data/agg.db and AGG_ADDR=:8080 are set in the image.
+  # Secrets go to `fly secrets set`, not here: AGG_ADMIN_TOKEN, AGG_INTERNAL_METRICS_TOKEN.
+
+# SQLite lives on the volume. One machine only: the database has a single writer and a volume
+# belongs to one machine.
+[mounts]
+  source = "agg_data"
+  destination = "/data"
+  initial_size = "1gb"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # Keep the machine running: events are buffered in memory and alerts are checked every minute.
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    timeout = "5s"
+    path = "/healthz"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

@@ -165,6 +165,7 @@ Flags or environment variables:
 | `-raw-retention-days` | `AGG_RAW_RETENTION_DAYS` | `7` | days of raw events kept for rebuilds and the tester |
 | `-max-keys-per-aggregate` | `AGG_MAX_KEYS_PER_AGGREGATE` | `50000` | cap on distinct group values per aggregate |
 | `-trust-proxy` | `AGG_TRUST_PROXY` | off | use `X-Forwarded-For` / `X-Forwarded-Proto` from your reverse proxy |
+| `-client-ip-header` | `AGG_CLIENT_IP_HEADER` | off | header your proxy sets to the client IP (`Fly-Client-IP`, `CF-Connecting-IP`); preferred over `X-Forwarded-For`, whose first entry a client can forge |
 | `-internal-metrics-token` | `AGG_INTERNAL_METRICS_TOKEN` | off | enables `/internal/metrics` (ingest rate, flush time, DB size) with this bearer token |
 | `-vapid-subject` | `AGG_VAPID_SUBJECT` | public URL | contact sent to Web Push services (`mailto:` or `https:`) |
 
@@ -179,6 +180,27 @@ named API tokens (API & MCP), which can be revoked one by one. Lost the admin to
 - Back up the SQLite file with [Litestream](https://litestream.io) (continuous, to S3-compatible storage) or
   `sqlite3 agg.db ".backup backup.db"`. Do not copy the file while the server is writing.
 - Retention: minute buckets 49 h, hour buckets 15 days, day buckets 400 days, raw events 7 days (configurable).
+
+### Deploy on Fly.io
+
+[`deploy/fly/fly.toml`](deploy/fly/fly.toml) runs the published image on one machine with a 1 GB volume for the
+database. Edit `app` and `AGG_PUBLIC_URL` in it, then:
+
+```sh
+fly apps create agg-example                     # the app name from fly.toml
+fly volumes create agg_data --size 1 --region waw --config deploy/fly/fly.toml   # same region as primary_region
+fly secrets set AGG_ADMIN_TOKEN=$(openssl rand -hex 24) --config deploy/fly/fly.toml   # note it down: it logs in to the UI
+fly deploy --config deploy/fly/fly.toml
+fly open --config deploy/fly/fly.toml
+```
+
+- Keep **one machine**: SQLite has a single writer and a volume belongs to one machine. Don't `fly scale count 2`.
+- The machine stays on (`auto_stop_machines = "off"`): events wait in memory up to a second before they are written,
+  and alerts are checked every minute. 512 MB of memory is plenty for most sites.
+- `AGG_CLIENT_IP_HEADER=Fly-Client-IP` gives rate limits the real client IP.
+- Custom domain: `fly certs add agg.example.com --config deploy/fly/fly.toml`, point DNS at the app, and update
+  `AGG_PUBLIC_URL`.
+- Backups: `fly volumes snapshots list` (Fly snapshots volumes daily), or run Litestream next to agg.
 
 ## Documentation
 

@@ -144,7 +144,9 @@ start) and to an optional webhook (Slack/Mattermost/Discord compatible).
   UI login, Bearer requests and MCP. A blocked client gets HTTP 429 with `Retry-After`, even with a correct token.
 - **Privacy**: property names such as `email`, `phone`, `password`, `card_number` are removed on the server at any depth;
   IP addresses are stored only when a site enables it; the visitor id is random and kept in `localStorage`.
-- Behind a reverse proxy, run with `-trust-proxy` so the client IP comes from `X-Forwarded-For`.
+- Behind a reverse proxy, run with `-trust-proxy` so the client IP comes from `X-Forwarded-For`, or better with
+  `-client-ip-header` (e.g. `Fly-Client-IP`, `CF-Connecting-IP`): a header the proxy always overwrites, unlike the
+  first `X-Forwarded-For` entry, which a client can forge.
 
 ## UI
 

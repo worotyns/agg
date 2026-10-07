@@ -87,9 +87,9 @@ func main() {
 }
 
 type serveOpts struct {
-	addr, db, adminToken, publicURL, metricsToken, vapidSubject *string
-	retention, maxKeys                                          *int
-	trustProxy                                                  *bool
+	addr, db, adminToken, publicURL, metricsToken, vapidSubject, clientIPHeader *string
+	retention, maxKeys                                                          *int
+	trustProxy                                                                  *bool
 }
 
 var opts serveOpts
@@ -105,6 +105,8 @@ func serveFlags(fs *flag.FlagSet) *flag.FlagSet {
 		maxKeys:      fs.Int("max-keys-per-aggregate", envInt("AGG_MAX_KEYS_PER_AGGREGATE", 50000), "cap on distinct group values per aggregate [AGG_MAX_KEYS_PER_AGGREGATE]"),
 		vapidSubject: fs.String("vapid-subject", env("AGG_VAPID_SUBJECT", ""), "contact for Web Push services, mailto: or https: URL; default: the public URL [AGG_VAPID_SUBJECT]"),
 		trustProxy:   fs.Bool("trust-proxy", env("AGG_TRUST_PROXY", "") == "1" || env("AGG_TRUST_PROXY", "") == "true", "trust X-Forwarded-For/-Proto from a reverse proxy [AGG_TRUST_PROXY]"),
+		clientIPHeader: fs.String("client-ip-header", env("AGG_CLIENT_IP_HEADER", ""),
+			"header set by your proxy with the client IP, e.g. Fly-Client-IP or CF-Connecting-IP; preferred over X-Forwarded-For [AGG_CLIENT_IP_HEADER]"),
 	}
 	return fs
 }
@@ -140,7 +142,7 @@ func serve(log *slog.Logger, args []string) error {
 	}
 	alerts := &alert.Engine{St: st, Push: &webpush.Sender{VAPID: vapid}, Log: log, Now: time.Now}
 	srv := server.New(server.Config{
-		PublicURL: *opts.publicURL, TrustProxy: *opts.trustProxy, InternalMetricsToken: *opts.metricsToken, Version: version,
+		PublicURL: *opts.publicURL, TrustProxy: *opts.trustProxy, ClientIPHeader: *opts.clientIPHeader, InternalMetricsToken: *opts.metricsToken, Version: version,
 	}, st, eng, alerts, log)
 	actx, stopAlerts := context.WithCancel(context.Background())
 	defer stopAlerts()

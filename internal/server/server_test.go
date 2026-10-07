@@ -30,13 +30,17 @@ type app struct {
 }
 
 func newApp(t *testing.T) *app {
+	return newAppWith(t, server.Config{Version: "test", InternalMetricsToken: "imt"})
+}
+
+func newAppWith(t *testing.T, cfg server.Config) *app {
 	f := testutil.New(t)
 	if _, err := server.EnsureAdminToken(t.Context(), f.St, adminToken); err != nil {
 		t.Fatal(err)
 	}
 	vapid, _ := webpush.GenerateVAPID()
 	alerts := &alert.Engine{St: f.St, Push: &webpush.Sender{VAPID: vapid}, Log: f.Log, Now: func() time.Time { return f.Now }}
-	s := server.New(server.Config{Version: "test", InternalMetricsToken: "imt"}, f.St, f.Eng, alerts, f.Log)
+	s := server.New(cfg, f.St, f.Eng, alerts, f.Log)
 	s.SetNow(func() time.Time { return f.Now })
 	srv := httptest.NewServer(s)
 	t.Cleanup(srv.Close)
@@ -411,5 +415,22 @@ func TestRecentEventsFilters(t *testing.T) {
 	page2 := list("limit=2&before=" + itoa(int(page1[1]["rawId"].(float64))))
 	if len(page2) != 2 || page2[0]["rawId"].(float64) >= page1[1]["rawId"].(float64) {
 		t.Fatalf("paging: %v then %v", page1, page2)
+	}
+}
+
+// With a client IP header, a forged X-Forwarded-For does not give an attacker fresh rate-limit buckets.
+func TestClientIPHeaderBeatsForwardedFor(t *testing.T) {
+	a := newAppWith(t, server.Config{Version: "test", TrustProxy: true, ClientIPHeader: "Fly-Client-IP"})
+	login := func(token, xff string) int {
+		res, _ := a.do("POST", "/api/login", map[string]string{"token": token}, "Fly-Client-IP", "203.0.113.7", "X-Forwarded-For", xff)
+		return res.StatusCode
+	}
+	for i := 0; i < 5; i++ {
+		if code := login("wrong", "10.0.0."+itoa(i)); code != 401 {
+			t.Fatalf("failure %d: %d", i, code)
+		}
+	}
+	if code := login("wrong", "10.0.0.99"); code != 429 {
+		t.Fatalf("new X-Forwarded-For escaped the limit: %d", code)
 	}
 }
