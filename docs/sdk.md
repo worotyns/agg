@@ -77,7 +77,8 @@ curl -X POST https://agg.example.com/e -H 'Content-Type: application/json' \
   -d '{"site":"pk_…","events":[{"name":"invoice_paid","id":"inv-42","props":{"amount":49}}]}'
 ```
 
-See [api.md](api.md#post-e-ingest). Server-side events get `meta.browser` etc. only if you forward a User-Agent.
+More examples (dedupe ids, batches, CI) and notes on `Origin`, `visitorId` and the User-Agent:
+[api.md](api.md#from-a-backend-a-script-or-ci-curl).
 
 ## Manual init
 

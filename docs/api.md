@@ -18,6 +18,45 @@ Only `name` is required. `meta` accepts `path`, `referrer` and `language`; the s
 
 Returns `202 {"accepted": 1, "dropped": 0}`; `404` unknown site, `403` origin not allowed, `429` rate limited.
 
+#### From a backend, a script or CI (curl)
+
+Anything that can make an HTTP request can send events: a backend, a cron job, a CI pipeline, a webhook handler.
+The site key is the same public `pk_…` key the browser snippet uses.
+
+```sh
+# one event
+curl -X POST https://agg.example.com/e -H 'Content-Type: application/json' \
+  -d '{"site":"pk_…","events":[{"name":"invoice_paid","props":{"amount":49,"currency":"EUR"}}]}'
+
+# count once: a retried webhook with the same id is accepted the first time, then {"accepted":0,"dropped":1}
+curl -X POST https://agg.example.com/e -H 'Content-Type: application/json' \
+  -d '{"site":"pk_…","events":[{"name":"subscription_started","id":"sub_8231","props":{"plan":"pro","value":49}}]}'
+
+# several events in one request (up to 100)
+curl -X POST https://agg.example.com/e -H 'Content-Type: application/json' -d @- <<'JSON'
+{"site":"pk_…","events":[
+  {"name":"deploy_finished","props":{"service":"api","version":"1.4.2","duration_s":84}},
+  {"name":"backup_finished","props":{"size_mb":512}}
+]}
+JSON
+```
+
+Notes for server-side senders:
+
+- **Allowed origins.** When a site restricts origins, requests without an allowed `Origin` header get `403`. Add
+  one, e.g. `-H 'Origin: https://shop.example.com'`. Origins only stop other websites' browsers; the key is public.
+- **Visitor.** Send `visitorId` (your user id or the browser's `agg_vid` from localStorage) if the event should count towards
+  distinct visitors; it is ignored when the site has the visitor id turned off.
+- **User-Agent.** `meta.browser`, `os` and `device` come from the `User-Agent` header. curl and HTTP libraries are
+  marked `meta.bot = true`; the events are still stored and counted (only automatic page views from bots are
+  dropped). Forward the end user's User-Agent with `-A "$UA"` if you want their device.
+- **Page context.** `meta.path`, `meta.referrer` and `meta.language` can be sent in `meta`; everything else belongs
+  in `props`.
+- **Time.** `ts` (unix milliseconds) is stored as the client time; windows count by the time the server received
+  the event.
+- **Limits.** 100 events and 256 KB per request, 8 KB of props per event, 50 requests per second per IP. Retry
+  `429` and `5xx` with a backoff.
+
 ### `GET /v1/values`: values
 
 ```

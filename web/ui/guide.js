@@ -11,7 +11,7 @@ const SECTIONS = [
   ['recipes', 'Recipes'],
   ['delivery', 'Delivery and limits'],
   ['privacy', 'Privacy and consent'],
-  ['http', 'Sending from a backend'],
+  ['http', 'Backends, scripts, CI'],
   ['verify', 'Checking your events'],
 ];
 
@@ -35,6 +35,10 @@ const NAMES = [
 export function GuidePage({ site, meta, base }) {
   const url = meta.baseUrl;
   const key = site.publicKey;
+  // A server sends no Origin by itself; when the site restricts origins, show one that passes (https://*.x → https://www.x).
+  const allowed = site.config.allowedOrigins || [];
+  const origin = (allowed.find((o) => !o.includes('*')) || allowed[0] || '').replace('://*.', '://www.');
+  const originHdr = origin ? ` \\\n  -H 'Origin: ${origin}'` : '';
   return html`
     <div class="page-head">
       <div><h1>Tracking guide</h1><div class="sub">The JavaScript API and how to design events for ${site.name}.
@@ -183,12 +187,26 @@ agg.consent({ analytics: false })  // drop the queue, send nothing`} />
         </section>
 
         <section class="card" id="g-http">
-          <h2>Sending from a backend</h2>
-          <p>Any program can post events to the same endpoint. Fields: <code>name</code> (required), <code>props</code>, <code>id</code> (dedupe), <code>visitorId</code>, <code>ts</code> (unix ms), <code>meta</code> (<code>path</code>, <code>referrer</code>, <code>language</code>).</p>
-          <${CodeBox} text=${`curl -X POST ${url}/e -H 'Content-Type: application/json' \\
+          <h2>Backends, scripts, CI</h2>
+          <p>Anything that can make an HTTP request can send events: your backend, a cron job, a CI pipeline, a webhook
+            handler. Fields: <code>name</code> (required), <code>props</code>, <code>id</code> (dedupe), <code>visitorId</code>, <code>ts</code> (unix ms), <code>meta</code> (<code>path</code>, <code>referrer</code>, <code>language</code>).
+            ${origin && html` This site restricts allowed origins, so the examples send <code>Origin: ${origin}</code>; without it the request gets <code>403</code>.`}</p>
+          <${CodeBox} text=${`curl -X POST ${url}/e -H 'Content-Type: application/json'${originHdr} \\
   -d '{"site":"${key}","events":[{"name":"invoice_paid","id":"inv-42","props":{"amount":49,"currency":"EUR"}}]}'`} />
-          <p class="hint">The response is <code>{"accepted": n, "dropped": n}</code>. Browser, OS and device are filled in only if you
-            forward the user's User-Agent header.</p>
+          <p class="hint">The response is <code>{"accepted": 1, "dropped": 0}</code>. Sending the same <code>id</code> again within 48 h
+            returns <code>"dropped": 1</code>, so retried webhooks count once.</p>
+          <h3 style="margin-top:14px">A deploy from CI, a nightly job</h3>
+          <${CodeBox} text=${`curl -fsS -X POST ${url}/e -H 'Content-Type: application/json'${originHdr} -d @- <<JSON
+{"site":"${key}","events":[
+  {"name":"deploy_finished","id":"$GITHUB_SHA","props":{"service":"api","version":"$VERSION","duration_s":84}},
+  {"name":"backup_finished","props":{"size_mb":512}}
+]}
+JSON`} />
+          <ul class="tight">
+            <li>Up to 100 events and 256 KB per request; retry <code>429</code> and <code>5xx</code> with a backoff.</li>
+            <li>Send <code>visitorId</code> (e.g. your user id) when the event should count towards distinct visitors.</li>
+            <li>Browser, OS and device come from the <code>User-Agent</code> header. curl and HTTP libraries are marked <code>meta.bot = true</code>; their events are still counted. Forward your user's User-Agent with <code>-A</code> to get their device.</li>
+          </ul>
         </section>
 
         <section class="card" id="g-verify">

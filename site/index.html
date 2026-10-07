@@ -48,7 +48,8 @@
         <li>
           <h3>Collect</h3>
           <p>A 3 KB script sends page views and your own events, <code>agg.track('feature_used', {…})</code>, in batches,
-            with retries, plus page, browser and device. You decide what to send.</p>
+            with retries, plus page, browser and device. Backends, cron jobs and CI send the same events with one HTTP
+            request. You decide what to send.</p>
         </li>
         <li>
           <h3>Aggregate</h3>
@@ -203,6 +204,12 @@ go build -o agg ./cmd/agg   # Go 1.27+
         app and pick a template (feature usage, active users, sign-ups per plan…); the tester shows what will be
         counted on your real recent events before you save.</p>
 <pre><code>agg.track('feature_used', { feature: 'export_pdf' })</code></pre>
+      <p>No browser needed: a backend, a cron job or a CI pipeline posts the same events over HTTP. An <code>id</code>
+        makes a retried webhook count once.</p>
+<pre><code>curl -X POST https://agg.example.com/e -H 'Content-Type: application/json' \
+  -d '{"site":"pk_…","events":[{"name":"invoice_paid","id":"inv-42","props":{"amount":49}}]}'</code></pre>
+      <p class="note">More examples, limits and headers in the
+        <a href="https://github.com/worotyns/agg/blob/main/docs/api.md#from-a-backend-a-script-or-ci-curl">HTTP API docs</a>.</p>
     </section>
 
     <section class="wrap" id="not">
