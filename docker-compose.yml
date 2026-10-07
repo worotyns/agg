@@ -1,0 +1,35 @@
+# agg + Prometheus + Grafana.
+#   1. docker compose up -d agg
+#   2. open http://localhost:8080 (admin token: docker compose logs agg), create a site and an export
+#   3. put the export token in deploy/prometheus/agg_token and the export id in deploy/prometheus/prometheus.yml
+#   4. docker compose up -d   → Grafana on http://localhost:3000 (admin / admin), dashboard "agg"
+services:
+  agg:
+    build: .
+    image: ghcr.io/worotyns/agg
+    ports: ["8080:8080"]
+    volumes: ["agg-data:/data"]
+    environment:
+      AGG_PUBLIC_URL: http://localhost:8080
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.15.0
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/prometheus/agg_token:/etc/prometheus/agg_token:ro
+    ports: ["9090:9090"]
+    depends_on: [agg]
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana-oss:13.0.2
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports: ["3000:3000"]
+    depends_on: [prometheus]
+    restart: unless-stopped
+
+volumes:
+  agg-data:

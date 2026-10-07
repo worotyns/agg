@@ -1,0 +1,60 @@
+<!doctype html>
+<!--
+  A tiny fake shop page for trying the SDK end to end.
+  Open it with your server and site key in the query string:
+    examples/shop.html?server=http://localhost:8080&site=pk_xxx
+  Then click the buttons and watch Events / Insights in the agg UI.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Example shop</title>
+  <style>
+    body { font: 15px/1.5 system-ui, sans-serif; max-width: 640px; margin: 40px auto; padding: 0 16px; }
+    button { font: inherit; padding: 6px 12px; margin: 4px 4px 4px 0; }
+    code { background: #f2f2f2; padding: 1px 4px; }
+  </style>
+  <script>
+    // Optional stub: calls made before agg.js loads are queued and replayed.
+    window.agg = window.agg || { q: [], track: function () { this.q.push(['track'].concat([].slice.call(arguments))); } };
+
+    var q = new URLSearchParams(location.search);
+    var s = document.createElement('script');
+    s.async = true;
+    s.src = (q.get('server') || 'http://localhost:8080').replace(/\/$/, '') + '/agg.js';
+    s.setAttribute('data-site', q.get('site') || '');
+    document.head.appendChild(s);
+
+    var product = { id: '73', name: 'Trail running shoe', category: 'shoes', price: 129 };
+    agg.track('product_view', product);
+  </script>
+</head>
+<body>
+  <h1>Trail running shoe</h1>
+  <p>Product 73, €129. This page sent a <code>page_view</code> and a <code>product_view</code> on load.</p>
+  <button id="cart">Add to cart</button>
+  <button id="buy">Buy</button>
+  <button id="feature">Use a feature</button>
+  <p id="out"></p>
+  <script>
+    var out = document.getElementById('out');
+    document.getElementById('cart').onclick = function () {
+      agg.track('add_to_cart', Object.assign({ quantity: 1 }, product));
+      out.textContent = "agg.track('add_to_cart', …)";
+    };
+    document.getElementById('buy').onclick = function () {
+      var order = 'A-' + Date.now();
+      agg.track('purchase', {
+        order_id: order, value: 129, currency: 'EUR', items: [Object.assign({ quantity: 1 }, product)],
+        email: 'jane@example.com', // removed by the server's privacy filter
+      }, order);
+      out.textContent = "agg.track('purchase', …, '" + order + "')";
+    };
+    document.getElementById('feature').onclick = function () {
+      agg.track('feature_used', { feature: 'size_guide' });
+      out.textContent = "agg.track('feature_used', { feature: 'size_guide' })";
+    };
+  </script>
+</body>
+</html>

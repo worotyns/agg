@@ -1,0 +1,45 @@
+# agg
+
+> Self-hosted, simple web analytics and product insights in one binary (Go + SQLite). A 3 KB script sends page views and the developer's own `agg.track(name, props)` events (batched, retried, enriched with path, referrer, browser, OS and device); you define real-time aggregates (count, sum, distinct count, last value, last time; grouped by any field; ranked inside groups) over sliding windows from 5 minutes to 30 days; you look at them in a built-in UI or Grafana/Prometheus, get alerts by browser push or webhook, read values as JSON, and configure everything from an AI assistant through the built-in MCP server.
+
+Licence: Elastic License 2.0 (source-available; free to self-host). Author: Mateusz Worotynski.
+Website: https://agg.worotyns.ovh · Source: https://github.com/worotyns/agg
+
+## Setup
+
+1. Run: `go build -o agg ./cmd/agg && ./agg serve` (or `docker compose up -d agg`). The first start prints an admin token (log in to the UI with it; `agg reset-admin-token` makes a new one). UI on port 8080. In production put it behind HTTPS and set `AGG_PUBLIC_URL`.
+2. Create a site and choose a preset: `website` (page views, visitors, top pages, referrers, browsers, devices, traffic-stopped alert), `shop` (website + purchases, revenue, purchases per product, bestsellers per category, product viewers, last purchase, average order value, conversion rate, no-orders and revenue-drop alerts), `saas` (website + sign-ups per plan, active users, feature usage, users per feature, sign-up rate, no-sign-ups alert), `publisher` (website + most read articles, readers per section).
+3. Install on every page, before `</head>`: `<script async src="https://AGG_HOST/agg.js" data-site="pk_SITE_KEY"></script>`
+4. Send events from your code: `agg.track('feature_used', { feature: 'export_pdf' })`, `agg.track('sign_up', { plan: 'pro' })`, `agg.track('article_read', { article, title, section })`, shop: `agg.track('product_view', { id, name, category, price })`, `agg.track('add_to_cart', { id, name, category, price, quantity })`, `agg.track('purchase', { order_id, value, currency, items: [{ id, name, category, price, quantity }] }, order_id)` (third argument = dedupe id). From a backend: `POST /e` with `{"site": "pk_…", "events": [{"name": "…", "props": {…}}]}`.
+5. agg adds `meta` to every event: `path`, `referrer` (external host, first page view), `language`, `browser`, `os`, `device` (desktop/mobile/tablet), `bot`, and `ip` only if enabled per site. Automatic page views from bots are dropped.
+
+## Concepts
+
+- Event: `{ name, props, meta, visitorId?, id? }`. Names are normalized to snake_case. Property names like email, phone, address, first_name, password are removed on the server. The SDK queues events in localStorage and retries with exponential backoff. Visitor id: random, localStorage, no cookies. Optional consent mode: `agg.consent({ analytics: true })`.
+- Aggregate: events + optional `where` expression (over `props`, `meta`, `visitor`, `event`) + optional `explode` (e.g. `props.items`, each element is `item`) + operation (`count`, `sum` of a value, `count_distinct` of a value or the visitor, `last_value`, `last_timestamp`) + optional group by (dimension name + expression, e.g. product = `item.id`, label `item.name`; page = `meta.path`) + optional rank within group (count/sum).
+- Expressions use expr syntax: `props.value > 100`, `props.currency in ["EUR","PLN"]`, `item.quantity ?? 1`, `props.path startsWith "/blog/"`.
+- Windows: 5m, 1h, 6h, 24h (exact to the minute), 7d (to the hour), 30d (to the UTC day), each with a previous window.
+- Variables: `<aggregate>_<window>` (e.g. `purchases_24h`), `<aggregate>_prev_<window>`, `<aggregate>_total` (all time, count/sum), `<aggregate>` for last_value/last_timestamp. For grouped aggregates add a dimension value (`product=73`), otherwise the site-wide value.
+- Formulas: arithmetic over variables, evaluated when read: `revenue_24h / purchases_24h`. Division by zero gives null.
+- Alerts: boolean condition over variables, formulas and `now` (unix seconds), e.g. `now - last_purchase > 3 * 3600`; states ok → pending (for N minutes) → firing → ok; cooldown; schedule (days, hours, timezone); channels: in-app, browser Web Push (enable per device in Alerts), webhook (Slack/Discord/Mattermost compatible JSON).
+- Rebuild: recompute an aggregate from stored raw events (default 7 days) after changing its definition.
+
+## Reading values
+
+- Public JSON (aggregates/formulas marked public): `GET /v1/values?site=pk_…&v=purchases_24h,aov&product=73` → `{"values": {...}}`; `null` means no value. Top lists: `GET /v1/top?site=pk_…&aggregate=bestsellers&window=7d&category=shoes`.
+- Admin API: everything under `/api` with `Authorization: Bearer <admin or API token>`.
+- Prometheus: token-protected export endpoints (`/export/<id>/metrics`): `agg_value{aggregate,window}` (gauge), `agg_dimension_value{...,<dimension>}`, `agg_events_total` (counter), `agg_last_timestamp_seconds`, `agg_formula_value`. Grafana dashboard and docker-compose included.
+
+## MCP (AI assistants)
+
+Create an API token in the UI (API & MCP; revocable). Connect: `claude mcp add --transport http agg https://AGG_HOST/mcp --header "Authorization: Bearer agg_api_…"`. Tools: list_sites, create_site (with preset), get_install_snippet, update_tracking, list_presets, apply_preset, list_event_names, recent_events, list_aggregates, test_aggregate (dry run on real events), create_aggregate, update_aggregate, rebuild_aggregate, delete_aggregate, list_variables, get_values, get_top, get_series, get_insights, list_formulas, create_formula, list_alerts, check_alert, create_alert, delete_alert, create_export. Prompt: plan_setup (goal, site). Recommended flow: list_presets → create_site/apply_preset → get_install_snippet → list_event_names/recent_events → test_aggregate → create_aggregate → check_alert → create_alert.
+
+## Docs
+
+- [README](https://github.com/worotyns/agg/blob/main/README.md): setup, configuration, production
+- [Aggregates](https://github.com/worotyns/agg/blob/main/docs/aggregates.md)
+- [Browser SDK](https://github.com/worotyns/agg/blob/main/docs/sdk.md)
+- [Alerts](https://github.com/worotyns/agg/blob/main/docs/alerts.md)
+- [MCP](https://github.com/worotyns/agg/blob/main/docs/mcp.md)
+- [HTTP API](https://github.com/worotyns/agg/blob/main/docs/api.md)
+- [Prometheus and Grafana](https://github.com/worotyns/agg/blob/main/docs/prometheus-grafana.md)

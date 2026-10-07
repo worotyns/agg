@@ -1,0 +1,12 @@
+global:
+  scrape_interval: 60s
+
+scrape_configs:
+  - job_name: agg
+    # Replace EXPORT_ID with the id shown in agg → Exports (/export/<id>/metrics).
+    metrics_path: /export/EXPORT_ID/metrics
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/agg_token
+    static_configs:
+      - targets: ["agg:8080"]

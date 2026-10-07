@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>agg: simple analytics and product insights, self-hosted</title>
+  <meta name="description" content="Self-hosted event aggregates: count, sum and rank your site's events per product, page or category over sliding windows. One binary with SQLite, a simple UI, a JSON API and a Prometheus export.">
+  <meta property="og:title" content="agg">
+  <meta property="og:url" content="https://agg.worotyns.ovh/">
+  <meta property="og:image" content="https://agg.worotyns.ovh/insights.png">
+  <link rel="canonical" href="https://agg.worotyns.ovh/">
+  <meta property="og:description" content="Simple analytics and product insights for your project. Self-hosted, one binary.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='1' y='9' width='3' height='6' rx='1' fill='%232a78d6'/%3E%3Crect x='6.5' y='5' width='3' height='10' rx='1' fill='%232a78d6'/%3E%3Crect x='12' y='1' width='3' height='14' rx='1' fill='%232a78d6'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="wrap top">
+    <a class="brand" href="#"><svg width="20" height="20" viewBox="0 0 16 16" aria-hidden="true"><rect x="1" y="9" width="3" height="6" rx="1"/><rect x="6.5" y="5" width="3" height="10" rx="1"/><rect x="12" y="1" width="3" height="14" rx="1"/></svg>agg</a>
+    <nav>
+      <a href="#how">How it works</a>
+      <a href="#start">Quick start</a>
+      <a href="https://github.com/worotyns/agg/tree/main/docs">Docs</a>
+      <a href="llms.txt">llms.txt</a>
+      <a href="https://github.com/worotyns/agg">GitHub</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="wrap hero">
+      <h1>Simple analytics and product insights for your project.</h1>
+      <p class="lead">Page views, visitors, top pages and referrers out of the box. Then count what matters for your
+        product: feature usage, sign-ups per plan, purchases per product, bestseller per category, over sliding windows
+        from 5 minutes to 30 days. Look at it in a simple UI, or in Grafana through Prometheus.</p>
+      <p class="facts">One binary · SQLite · alerts with browser push · MCP for AI assistants · no personal data</p>
+      <div class="cta">
+        <a class="btn primary" href="#start">Quick start</a>
+        <a class="btn" href="https://github.com/worotyns/agg">Source on GitHub</a>
+      </div>
+    </section>
+
+    <section class="wrap shot">
+      <img src="insights.png" width="1240" height="760" alt="The agg Insights page: page views, purchases, revenue, visitors, average order value, bestsellers per category and top pages for the last 24 hours.">
+    </section>
+
+    <section class="wrap" id="how">
+      <h2>How it works</h2>
+      <ol class="steps">
+        <li>
+          <h3>Collect</h3>
+          <p>A 3 KB script sends page views and your own events, <code>agg.track('feature_used', {…})</code>, in batches,
+            with retries, plus page, browser and device. You decide what to send.</p>
+        </li>
+        <li>
+          <h3>Aggregate</h3>
+          <p>Define what to compute, without code: count, sum, distinct count, last value or last time; grouped by any
+            field; ranked inside groups. Values update as events arrive.</p>
+        </li>
+        <li>
+          <h3>Look</h3>
+          <p>A built-in UI with tiles, trends against the previous period, top lists and history. Or export to
+            Prometheus and use Grafana and Alertmanager.</p>
+        </li>
+        <li>
+          <h3>Act</h3>
+          <p>Alerts when something happens or stops happening, as browser notifications, in-app or to a Slack /
+            Discord webhook. A JSON API returns the values you mark public.</p>
+        </li>
+      </ol>
+    </section>
+
+    <section class="wrap" id="examples">
+      <h2>What you can compute</h2>
+      <div class="cols">
+        <div>
+          <h3>Websites</h3>
+          <ul>
+            <li>page views and visitors vs the previous period</li>
+            <li>top 10 pages today, this week, this month</li>
+            <li>top referrers</li>
+            <li>most read articles per section</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Products and SaaS</h3>
+          <ul>
+            <li>feature usage and users per feature</li>
+            <li>active users in the last hour, day, week</li>
+            <li>sign-ups per plan and per source</li>
+            <li>sign-up rate, this week vs last week</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Shops</h3>
+          <ul>
+            <li>purchases and revenue per product</li>
+            <li>bestseller in each category this week</li>
+            <li>visitors viewing a product right now</li>
+            <li>time since the last purchase, average order value</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="grid2 example">
+        <div>
+          <div class="label">An aggregate</div>
+<pre><code>agg.track('purchase', { order_id, value,
+  items: [{ id, name, category, quantity }] }, order_id)
+
+Events     purchase
+Explode    props.items
+Operation  sum of item.quantity
+Group by   category = item.category
+Rank by    product  = item.id
+Windows    5m 1h 6h 24h 7d 30d (+ previous)</code></pre>
+        </div>
+        <div>
+          <div class="label">Its values</div>
+<pre><code>GET /v1/top?site=pk_…&amp;aggregate=bestsellers
+           &amp;window=7d&amp;category=shoes
+
+{ "items": [
+  { "key": "73", "label": "Trail shoe", "value": 41 },
+  { "key": "12", "label": "Road shoe",  "value": 27 }
+] }</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="wrap" id="grafana">
+      <h2>Simple UI, or Grafana + Prometheus</h2>
+      <div class="grid2">
+        <div>
+          <p>The built-in UI covers the everyday questions: what happened in the last hour, day, week or month, compared
+            with the period before, and what is on top.</p>
+          <p>If you already run Prometheus, create a token-protected export and scrape it. Window values are gauges,
+            all-time counts are counters, per-product series are limited to a top K or an allowlist. A Grafana dashboard
+            and a docker-compose file are included.</p>
+        </div>
+<pre><code>agg_value{site="shop",aggregate="purchases",window="24h"} 123
+agg_dimension_value{site="shop",aggregate="purchases",
+  window="24h",product="73"} 5
+agg_events_total{site="shop",aggregate="purchases"} 5012
+agg_formula_value{site="shop",formula="aov"} 182.4</code></pre>
+      </div>
+    </section>
+
+    <section class="wrap" id="ai">
+      <h2>Set it up by talking to your AI assistant</h2>
+      <div class="grid2">
+        <div>
+          <p>agg has a built-in MCP server. Connect Claude or another assistant with a revocable token and ask it to plan
+            your analytics: it picks a preset, tells you which events to send, checks what your site really sends,
+            tests aggregates on real events, and creates them, with alerts, after you confirm.</p>
+          <p>Presets for websites, online shops, SaaS products and blogs work without an assistant too:
+            one click when you add a site.</p>
+        </div>
+<pre><code>claude mcp add --transport http agg \
+  https://agg.example.com/mcp \
+  --header "Authorization: Bearer agg_api_…"
+
+&gt; Plan analytics for my SaaS: which features
+  do paying users use? Alert me when
+  sign-ups stop.</code></pre>
+      </div>
+    </section>
+
+    <section class="wrap" id="privacy">
+      <h2>Privacy</h2>
+      <ul class="checks">
+        <li>You decide what to send. As a safety net the server removes personal-data fields (<code>email</code>,
+          <code>phone</code>, addresses…) from properties; you can add your own. IPs are not stored unless you turn it on.</li>
+        <li>No cookies and no fingerprinting. The optional visitor id is a random value in <code>localStorage</code>,
+          used only to count distinct visitors.</li>
+        <li>Can wait for your consent banner before sending anything.</li>
+        <li>Self-hosted: events and aggregates stay in one SQLite file on your server. Raw events are kept 7 days by
+          default.</li>
+        <li>Only real numbers: missing values are <code>null</code>, never estimated.</li>
+      </ul>
+    </section>
+
+    <section class="wrap" id="start">
+      <h2>Quick start</h2>
+<pre><code># build and run (Go 1.27+), or use the Dockerfile
+git clone https://github.com/worotyns/agg && cd agg
+go build -o agg ./cmd/agg
+./agg serve            # prints the admin token, UI on http://localhost:8080</code></pre>
+      <p>Log in, create a site and add its snippet to your pages:</p>
+<pre><code>&lt;script async src="https://agg.example.com/agg.js" data-site="pk_…"&gt;&lt;/script&gt;</code></pre>
+      <p>Page views, visitors, top 10 pages and referrers work right away. For product insights, send events from your
+        app and pick a template (feature usage, active users, sign-ups per plan…); the tester shows what will be
+        counted on your real recent events before you save.</p>
+<pre><code>agg.track('feature_used', { feature: 'export_pdf' })</code></pre>
+    </section>
+
+    <section class="wrap" id="not">
+      <h2>What it is not</h2>
+      <p>It is not a full web analytics suite: no sessions, funnels, user profiles or session replay. It does not render
+        widgets or pop-ups on your site; it gives you the numbers and an API to build them on.</p>
+      <p>It is source-available under the Elastic License 2.0: free to use, modify and self-host, also commercially;
+        not to be resold as a hosted service.</p>
+    </section>
+  </main>
+
+  <footer class="wrap">
+    <span>agg · self-hosted · <a href="https://github.com/worotyns/agg/blob/main/LICENSE">Elastic License 2.0</a> · by Mateusz Worotynski</span>
+    <span><a href="https://github.com/worotyns/agg">GitHub</a> · <a href="https://github.com/worotyns/agg/tree/main/docs">Docs</a> · <a href="llms.txt">llms.txt</a></span>
+  </footer>
+</body>
+</html>
