@@ -138,7 +138,7 @@ export function AlertsPage({ site }) {
     <${Alert} error=${list.error} ok=${msg} />
     ${list.data && html`
       <div class="card table-wrap" style="padding:4px 6px">
-        ${!list.data.length ? html`<div class="empty">No alerts yet. Example: <code>orders_1h < 1</code> for an hour without orders.</div>` : html`
+        ${!list.data.length ? html`<div class="empty">No alerts yet. Example: <code>${'orders_1h < 1'}</code> for an hour without orders.</div>` : html`
         <table>
           <thead><tr><th>Alert</th><th>State</th><th>Now</th><th></th></tr></thead>
           <tbody>${list.data.map((a) => html`
