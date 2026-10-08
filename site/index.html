@@ -18,6 +18,9 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='1' y='9' width='3' height='6' rx='1' fill='%232a78d6'/%3E%3Crect x='6.5' y='5' width='3' height='10' rx='1' fill='%232a78d6'/%3E%3Crect x='12' y='1' width='3' height='14' rx='1' fill='%232a78d6'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css?v=4">
   <script>(function(){try{var t=localStorage.getItem('agg-theme');if(t)document.documentElement.dataset.theme=t;}catch(e){}})();</script>
+  <!-- Analytics: page views are sent by agg.js; the stub queues calls made before it loads. -->
+  <script>window.agg=window.agg||{q:[],track:function(){this.q.push(["track"].concat([].slice.call(arguments)));}};</script>
+  <script async src="https://agg.tfdw.ovh/agg.js" data-site="pk_45pqktgbz4uifjyi7lg3"></script>
 </head>
 <body>
   <header class="top">
@@ -282,6 +285,11 @@ go build -o agg ./cmd/agg   # Go 1.27+
   </footer>
 
   <script>
+    // Goal events for this landing page. window.agg may still be the pre-load stub, which queues them.
+    function aggTrack(name, props) {
+      if (window.agg && typeof window.agg.track === 'function') window.agg.track(name, props);
+    }
+
     // Theme toggle: respect OS by default, remember manual choice.
     (function () {
       var btn = document.getElementById('themeBtn');
@@ -314,7 +322,7 @@ go build -o agg ./cmd/agg   # Go 1.27+
         panels[i].id = 'panel' + b + '-' + i;
         t.setAttribute('aria-controls', panels[i].id);
         panels[i].setAttribute('aria-labelledby', t.id);
-        t.addEventListener('click', function () { select(i); });
+        t.addEventListener('click', function () { select(i); aggTrack('install_tab', { method: (t.textContent || '').trim() }); });
         t.addEventListener('keydown', function (e) {
           var d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
           if (d) select((i + d + tabs.length) % tabs.length, true);
@@ -334,6 +342,7 @@ go build -o agg ./cmd/agg   # Go 1.27+
       btn.addEventListener('click', function () {
         navigator.clipboard.writeText(pre.querySelector('code').textContent).then(function () {
           btn.textContent = 'Copied';
+          aggTrack('code_copy', { snippet: (pre.querySelector('code').textContent || '').split('\n')[0].trim().slice(0, 80) });
           setTimeout(function () { btn.textContent = 'Copy'; }, 1500);
         });
       });
@@ -343,6 +352,46 @@ go build -o agg ./cmd/agg   # Go 1.27+
       box.appendChild(pre);
       box.appendChild(btn);
     });
+
+    // Landing-page goal events: CTA and outbound clicks, in-page jumps, section views.
+    (function () {
+      function label(el) { return (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 80); }
+      function place(el) {
+        for (var n = el; n && n !== document.body; n = n.parentElement) {
+          if (n.tagName === 'SECTION') return n.id || (n.classList.contains('hero') ? 'hero' : '');
+          if (n.tagName === 'HEADER') return 'header';
+          if (n.tagName === 'FOOTER') return 'footer';
+        }
+        return '';
+      }
+      document.addEventListener('click', function (e) {
+        var a = e.target && e.target.closest ? e.target.closest('a') : null;
+        if (!a) return;
+        var href = a.getAttribute('href') || '';
+        var external = /^https?:\/\//.test(href) && a.hostname !== location.hostname;
+        if (a.classList.contains('btn') || a.classList.contains('gh')) {
+          aggTrack('cta_click', { label: label(a), target: external ? a.hostname : href, place: place(a) });
+        } else if (external) {
+          aggTrack('outbound_click', { host: a.hostname, label: label(a), place: place(a) });
+        } else if (href.charAt(0) === '#') {
+          aggTrack('nav_click', { section: href.slice(1) || 'top', place: place(a) });
+        }
+      });
+      // Which parts of the page a visitor actually reaches.
+      if (window.IntersectionObserver) {
+        var seen = {}, io = new IntersectionObserver(function (entries) {
+          for (var i = 0; i < entries.length; i++) {
+            if (!entries[i].isIntersecting) continue;
+            var key = entries[i].target.id || (entries[i].target.classList.contains('hero') ? 'hero' : '');
+            if (!key || seen[key]) continue;
+            seen[key] = 1;
+            aggTrack('section_view', { section: key });
+            io.unobserve(entries[i].target);
+          }
+        }, { threshold: 0.3 });
+        document.querySelectorAll('main > section').forEach(function (s) { io.observe(s); });
+      }
+    })();
   </script>
 </body>
 </html>
