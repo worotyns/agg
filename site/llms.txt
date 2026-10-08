@@ -2,7 +2,7 @@
 
 > Self-hosted, simple web analytics and product insights in one binary (Go + SQLite). A 3 KB script sends page views and the developer's own `agg.track(name, props)` events (batched, retried, enriched with path, referrer, browser, OS and device); you define real-time aggregates (count, sum, distinct count, last value, last time; grouped by any field; ranked inside groups) over sliding windows from 5 minutes to 30 days; you look at them in a built-in UI or Grafana/Prometheus, get alerts by browser push or webhook, read values as JSON, and configure everything from an AI assistant through the built-in MCP server.
 
-Licence: Elastic License 2.0 (source-available; free to self-host). Author: Mateusz Worotynski.
+Licence: Elastic License 2.0 (source-available; free to self-host). Author: Mateusz Worotynski aka worotyns <i@worotyns.ovh>.
 Website: https://agg.worotyns.ovh · Source: https://github.com/worotyns/agg
 
 ## Setup
