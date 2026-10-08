@@ -14,13 +14,14 @@ export function Sparkline({ points }) {
   const max = Math.max(1, ...points.map((p) => p.v));
   const n = points.length;
   const w = 100 / n;
-  const gap = n > 60 ? 0.15 : 0.6;
+  const gap = n > 60 ? 0.12 : 0.7;
   return html`
     <svg class="spark" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
       ${points.map((p, i) => {
-        const h = p.v ? Math.max(1.5, (p.v / max) * 38) : 0.6;
-        return html`<rect x=${i * w + gap / 2} y=${40 - h} width=${Math.max(w - gap, 0.2)} height=${h}
-          fill=${i === n - 1 ? 'var(--accent)' : 'var(--bar-muted)'} rx="0.4" />`;
+        const h = p.v ? Math.max(2.5, (p.v / max) * 36) : 1;
+        const last = i === n - 1;
+        return html`<rect x=${i * w + gap / 2} y=${40 - h} width=${Math.max(w - gap, 0.25)} height=${h}
+          fill=${last ? 'var(--accent)' : 'var(--bar)'} opacity=${last ? 1 : p.v ? 0.75 : 0.3} rx="0.8" />`;
       })}
     </svg>`;
 }

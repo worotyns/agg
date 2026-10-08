@@ -104,6 +104,16 @@ function App() {
 }
 
 function Shell({ sites, site, page, children }) {
+  const [theme, setTheme] = useState(() => { try { return localStorage.getItem('agg-theme') || ''; } catch (e) { return ''; } });
+  useEffect(() => {
+    if (theme) document.documentElement.dataset.theme = theme;
+    else delete document.documentElement.dataset.theme;
+  }, [theme]);
+  const toggleTheme = () => {
+    const next = (theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')) === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    try { localStorage.setItem('agg-theme', next); } catch (e) {}
+  };
   return html`
     <header class="topbar">
       <a class="brand" href="#/"><${Logo} /> agg</a>
@@ -117,6 +127,7 @@ function Shell({ sites, site, page, children }) {
           <a class=${page === k ? 'active' : ''} href=${`#/s/${site.id}/${k}`}>${label}</a>`)}</nav>`}
       ${!site && html`<div class="spacer"></div>`}
       <div class="top-right">
+        <button class="theme-btn" title="Toggle theme" aria-label="Toggle theme" onClick=${toggleTheme}>◐</button>
         <${Bell} />
         <a class=${page === 'access' ? 'active' : ''} href="#/access">API & MCP</a>
         <button class="link" onClick=${() => api('POST', '/logout').then(() => location.reload())}>Log out</button>
@@ -206,10 +217,11 @@ const WINDOWS = ['1h', '24h', '7d', '30d'];
 function Delta({ change, prev, window }) {
   if (prev === undefined || prev === null) return null;
   if (change === null || change === undefined) {
-    return html`<div class="delta">previous ${window}: ${compact(prev)}</div>`;
+    if ((prev === 0 || prev === '0') && change == null) return html`<div class="delta"><span class="up">● new</span><span class="faint">vs previous ${window}</span></div>`;
+    return html`<div class="delta faint">previous ${window}: ${compact(prev)}</div>`;
   }
   const up = change >= 0;
-  return html`<div class="delta"><span class=${up ? 'up' : 'down'}>${up ? '▲' : '▼'} ${Math.abs(change).toFixed(0)}%</span> vs previous ${window} (${compact(prev)})</div>`;
+  return html`<div class="delta"><span class=${up ? 'up' : 'down'}>${up ? '▲' : '▼'} ${Math.abs(change).toFixed(0)}%</span><span class="faint">vs prev. ${window} (${compact(prev)})</span></div>`;
 }
 
 function InsightsPage({ site, base, query }) {
