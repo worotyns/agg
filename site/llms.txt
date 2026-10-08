@@ -24,6 +24,12 @@ Website: https://agg.worotyns.ovh · Source: https://github.com/worotyns/agg
 - Alerts: boolean condition over variables, formulas and `now` (unix seconds), e.g. `now - last_purchase > 3 * 3600`; states ok → pending (for N minutes) → firing → ok; cooldown; schedule (days, hours, timezone); channels: in-app, browser Web Push (enable per device in Alerts), webhook (Slack/Discord/Mattermost compatible JSON).
 - Rebuild: recompute an aggregate from stored raw events (default 7 days) after changing its definition.
 
+## Limits and defaults
+
+- Ingest (`POST /e`): 100 events and 256 KB per request, 8 KB of props per event, 50 requests per second per IP; responses `202 {"accepted","dropped"}`, `404` unknown site, `403` origin not allowed, `429` rate limited.
+- Raw events kept 7 days (`AGG_RAW_RETENTION_DAYS`), at most 50 000 distinct group values per aggregate (`AGG_MAX_KEYS_PER_AGGREGATE`).
+- Config: `AGG_ADDR` (`:8080`), `AGG_DB` (SQLite file), `AGG_ADMIN_TOKEN`, `AGG_PUBLIC_URL`, `AGG_TRUST_PROXY`, `AGG_CLIENT_IP_HEADER` (e.g. `Fly-Client-IP`).
+
 ## Reading values
 
 - Public JSON (aggregates/formulas marked public): `GET /v1/values?site=pk_…&v=purchases_24h,aov&product=73` → `{"values": {...}}`; `null` means no value. Top lists: `GET /v1/top?site=pk_…&aggregate=bestsellers&window=7d&category=shoes`.
@@ -34,6 +40,10 @@ Website: https://agg.worotyns.ovh · Source: https://github.com/worotyns/agg
 
 Create an API token in the UI (API & MCP; revocable). Connect: `claude mcp add --transport http agg https://AGG_HOST/mcp --header "Authorization: Bearer agg_api_…"`. Tools: list_sites, create_site (with preset), get_install_snippet, update_tracking, list_presets, apply_preset, list_event_names, recent_events, list_aggregates, test_aggregate (dry run on real events), create_aggregate, update_aggregate, rebuild_aggregate, delete_aggregate, list_variables, get_values, get_top, get_series, get_insights, list_formulas, create_formula, list_alerts, check_alert, create_alert, delete_alert, create_export. Prompt: plan_setup (goal, site). Recommended flow: list_presets → create_site/apply_preset → get_install_snippet → list_event_names/recent_events → test_aggregate → create_aggregate → check_alert → create_alert.
 
+## What it is not
+
+Not a full web analytics suite: no sessions, funnels, user profiles or session replay. It does not render widgets on the tracked site; build them on `/v1/values` and `/v1/top`. No third-party integrations: send the events you need.
+
 ## Docs
 
 - [README](https://github.com/worotyns/agg/blob/main/README.md): setup, configuration, production
@@ -43,3 +53,7 @@ Create an API token in the UI (API & MCP; revocable). Connect: `claude mcp add -
 - [MCP](https://github.com/worotyns/agg/blob/main/docs/mcp.md)
 - [HTTP API](https://github.com/worotyns/agg/blob/main/docs/api.md)
 - [Prometheus and Grafana](https://github.com/worotyns/agg/blob/main/docs/prometheus-grafana.md)
+
+## Optional
+
+- [Architecture](https://github.com/worotyns/agg/blob/main/ARCHITECTURE.md): components, ingestion, storage, security

@@ -5,74 +5,95 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>agg: simple analytics and product insights, self-hosted</title>
   <meta name="description" content="Self-hosted event aggregates: count, sum and rank your site's events per product, page or category over sliding windows. One binary with SQLite, a simple UI, a JSON API and a Prometheus export.">
-  <meta property="og:title" content="agg">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#121214" media="(prefers-color-scheme: dark)">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="agg: simple analytics and product insights, self-hosted">
+  <meta property="og:description" content="Simple analytics and product insights for your project. Self-hosted, one binary.">
   <meta property="og:url" content="https://agg.worotyns.ovh/">
   <meta property="og:image" content="https://agg.worotyns.ovh/insights.png">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="canonical" href="https://agg.worotyns.ovh/">
-  <meta property="og:description" content="Simple analytics and product insights for your project. Self-hosted, one binary.">
+  <link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='1' y='9' width='3' height='6' rx='1' fill='%232a78d6'/%3E%3Crect x='6.5' y='5' width='3' height='10' rx='1' fill='%232a78d6'/%3E%3Crect x='12' y='1' width='3' height='14' rx='1' fill='%232a78d6'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header class="wrap top">
-    <a class="brand" href="#"><svg width="20" height="20" viewBox="0 0 16 16" aria-hidden="true"><rect x="1" y="9" width="3" height="6" rx="1"/><rect x="6.5" y="5" width="3" height="10" rx="1"/><rect x="12" y="1" width="3" height="14" rx="1"/></svg>agg</a>
-    <nav>
-      <a href="#how">How it works</a>
-      <a href="#start">Quick start</a>
-      <a href="https://github.com/worotyns/agg/tree/main/docs">Docs</a>
-      <a href="llms.txt">llms.txt</a>
-      <a href="https://github.com/worotyns/agg">GitHub</a>
-    </nav>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="top">
+    <div class="wrap top-in">
+      <a class="brand" href="#"><svg width="20" height="20" viewBox="0 0 16 16" aria-hidden="true"><rect x="1" y="9" width="3" height="6" rx="1"/><rect x="6.5" y="5" width="3" height="10" rx="1"/><rect x="12" y="1" width="3" height="14" rx="1"/></svg>agg</a>
+      <nav aria-label="Main">
+        <a class="opt" href="#how">How it works</a>
+        <a class="opt" href="#use-cases">Use cases</a>
+        <a href="#start">Quick start</a>
+        <a class="opt" href="https://github.com/worotyns/agg/tree/main/docs">Docs</a>
+        <a class="gh" href="https://github.com/worotyns/agg" aria-label="GitHub"><svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg><span>GitHub</span></a>
+      </nav>
+    </div>
   </header>
 
-  <main>
+  <main id="main">
     <section class="wrap hero">
+      <p class="eyebrow">Self-hosted · one binary · SQLite</p>
       <h1>Simple analytics and product insights for your project.</h1>
       <p class="lead">Page views, visitors, top pages and referrers out of the box. Then count what matters for your
-        product: feature usage, sign-ups per plan, purchases per product, bestseller per category, over sliding windows
-        from 5 minutes to 30 days. Look at it in a simple UI, or in Grafana through Prometheus.</p>
-      <p class="facts">One binary · SQLite · alerts with browser push · MCP for AI assistants · no personal data</p>
+        product: feature usage, sign-ups per plan, bestseller per category, over sliding windows from 5&nbsp;minutes
+        to 30&nbsp;days.</p>
       <div class="cta">
-        <a class="btn primary" href="#start">Quick start</a>
+        <a class="btn primary" href="#start">Get started</a>
         <a class="btn" href="https://github.com/worotyns/agg">Source on GitHub</a>
       </div>
+      <pre class="oneliner"><code>docker run -d -p 8080:8080 -v agg-data:/data ghcr.io/worotyns/agg:latest</code></pre>
+      <ul class="facts">
+        <li>3 KB script</li>
+        <li>No cookies</li>
+        <li>Alerts with browser push</li>
+        <li>Prometheus export</li>
+        <li>MCP for AI assistants</li>
+      </ul>
     </section>
 
     <section class="wrap shot">
-      <img src="insights.png" width="1240" height="760" alt="The agg Insights page: page views, purchases, revenue, visitors, average order value, bestsellers per category and top pages for the last 24 hours.">
+      <figure class="frame">
+        <div class="frame-bar" aria-hidden="true"><i></i><i></i><i></i></div>
+        <img src="insights.png" width="1240" height="760" alt="The agg Insights page: page views, purchases, revenue, visitors, average order value, bestsellers per category and top pages for the last 24 hours.">
+      </figure>
     </section>
 
     <section class="wrap" id="how">
       <h2>How it works</h2>
+      <p class="intro">You send events. agg keeps live numbers over sliding windows and shows them where you look.</p>
       <ol class="steps">
         <li>
           <h3>Collect</h3>
-          <p>A 3 KB script sends page views and your own events, <code>agg.track('feature_used', {…})</code>, in batches,
-            with retries, plus page, browser and device. Backends, cron jobs and CI send the same events with one HTTP
-            request. You decide what to send.</p>
+          <p>A 3 KB script sends page views and your own events, <code>agg.track('feature_used', {…})</code>, in
+            batches, with retries, plus page, browser and device. Backends, cron jobs and CI send the same events with
+            one HTTP request.</p>
         </li>
         <li>
           <h3>Aggregate</h3>
-          <p>Define what to compute, without code: count, sum, distinct count, last value or last time; grouped by any
-            field; ranked inside groups. Values update as events arrive.</p>
+          <p>Define what to compute, without code: count, sum, distinct count, last value or last time; grouped by
+            any field; ranked inside groups. Values update as events arrive.</p>
         </li>
         <li>
           <h3>Look</h3>
           <p>A built-in UI with tiles, trends against the previous period, top lists and history. Or export to
-            Prometheus and use Grafana and Alertmanager.</p>
+            Prometheus and use Grafana.</p>
         </li>
         <li>
           <h3>Act</h3>
-          <p>Alerts when something happens or stops happening, as browser notifications, in-app or to a Slack /
-            Discord webhook. A JSON API returns the values you mark public.</p>
+          <p>Alerts when something happens or stops happening: browser notifications, in-app, or a Slack / Discord
+            webhook. A JSON API returns the values you mark public.</p>
         </li>
       </ol>
     </section>
 
-    <section class="wrap" id="examples">
+    <section class="wrap" id="use-cases">
       <h2>What you can compute</h2>
-      <div class="cols">
-        <div>
+      <p class="intro">Presets for each of these are one click away when you add a site.</p>
+      <div class="cards">
+        <div class="card">
           <h3>Websites</h3>
           <ul>
             <li>page views and visitors vs the previous period</li>
@@ -81,7 +102,7 @@
             <li>most read articles per section</li>
           </ul>
         </div>
-        <div>
+        <div class="card">
           <h3>Products and SaaS</h3>
           <ul>
             <li>feature usage and users per feature</li>
@@ -90,7 +111,7 @@
             <li>sign-up rate, this week vs last week</li>
           </ul>
         </div>
-        <div>
+        <div class="card">
           <h3>Shops</h3>
           <ul>
             <li>purchases and revenue per product</li>
@@ -101,7 +122,7 @@
         </div>
       </div>
 
-      <div class="grid2 example">
+      <div class="split example">
         <div>
           <div class="label">An aggregate</div>
 <pre><code>agg.track('purchase', { order_id, value,
@@ -127,34 +148,31 @@ Windows    5m 1h 6h 24h 7d 30d (+ previous)</code></pre>
       </div>
     </section>
 
-    <section class="wrap" id="grafana">
-      <h2>Simple UI, or Grafana + Prometheus</h2>
-      <div class="grid2">
-        <div>
-          <p>The built-in UI covers the everyday questions: what happened in the last hour, day, week or month, compared
-            with the period before, and what is on top.</p>
-          <p>If you already run Prometheus, create a token-protected export and scrape it. Window values are gauges,
-            all-time counts are counters, per-product series are limited to a top K or an allowlist. A Grafana dashboard
-            and a docker-compose file are included.</p>
-        </div>
-<pre><code>agg_value{site="shop",aggregate="purchases",window="24h"} 123
+    <section class="wrap feature" id="grafana">
+      <div>
+        <h2>Simple UI, or Grafana + Prometheus</h2>
+        <p>The built-in UI covers the everyday questions: what happened in the last hour, day, week or month, compared
+          with the period before, and what is on top.</p>
+        <p>If you already run Prometheus, create a token-protected export and scrape it. Window values are gauges,
+          all-time counts are counters, per-product series are limited to a top K or an allowlist. A Grafana dashboard
+          and a docker-compose file are included.</p>
+      </div>
+<pre><code>agg_value{site="shop",aggregate="purchases",
+  window="24h"} 123
 agg_dimension_value{site="shop",aggregate="purchases",
   window="24h",product="73"} 5
 agg_events_total{site="shop",aggregate="purchases"} 5012
 agg_formula_value{site="shop",formula="aov"} 182.4</code></pre>
-      </div>
     </section>
 
-    <section class="wrap" id="ai">
-      <h2>Set it up by talking to your AI assistant</h2>
-      <div class="grid2">
-        <div>
-          <p>agg has a built-in MCP server. Connect Claude or another assistant with a revocable token and ask it to plan
-            your analytics: it picks a preset, tells you which events to send, checks what your site really sends,
-            tests aggregates on real events, and creates them, with alerts, after you confirm.</p>
-          <p>Presets for websites, online shops, SaaS products and blogs work without an assistant too:
-            one click when you add a site.</p>
-        </div>
+    <section class="wrap feature flip" id="ai">
+      <div>
+        <h2>Set it up by talking to your AI assistant</h2>
+        <p>agg has a built-in MCP server. Connect Claude or another assistant with a revocable token and ask it to
+          plan your analytics: it picks a preset, tells you which events to send, checks what your site really sends,
+          tests aggregates on real events, and creates them, with alerts, after you confirm.</p>
+        <p>The presets for websites, shops, SaaS products and blogs work without an assistant too.</p>
+      </div>
 <pre><code>claude mcp add --transport http agg \
   https://agg.example.com/mcp \
   --header "Authorization: Bearer agg_api_…"
@@ -162,68 +180,154 @@ agg_formula_value{site="shop",formula="aov"} 182.4</code></pre>
 &gt; Plan analytics for my SaaS: which features
   do paying users use? Alert me when
   sign-ups stop.</code></pre>
-      </div>
     </section>
 
     <section class="wrap" id="privacy">
-      <h2>Privacy</h2>
+      <h2>Privacy by default</h2>
       <ul class="checks">
-        <li>You decide what to send. As a safety net the server removes personal-data fields (<code>email</code>,
-          <code>phone</code>, addresses…) from properties; you can add your own. IPs are not stored unless you turn it on.</li>
-        <li>No cookies and no fingerprinting. The optional visitor id is a random value in <code>localStorage</code>,
-          used only to count distinct visitors.</li>
-        <li>Can wait for your consent banner before sending anything.</li>
-        <li>Self-hosted: events and aggregates stay in one SQLite file on your server. Raw events are kept 7 days by
-          default.</li>
-        <li>Only real numbers: missing values are <code>null</code>, never estimated.</li>
+        <li><strong>You decide what to send.</strong> As a safety net the server removes personal-data fields
+          (<code>email</code>, <code>phone</code>, addresses…) from properties; you can add your own. IPs are not
+          stored unless you turn it on.</li>
+        <li><strong>No cookies, no fingerprinting.</strong> The optional visitor id is a random value in
+          <code>localStorage</code>, used only to count distinct visitors.</li>
+        <li><strong>Consent-aware.</strong> It can wait for your consent banner before sending or storing
+          anything.</li>
+        <li><strong>Your server, one file.</strong> Events and aggregates stay in one SQLite file. Raw events are kept
+          7 days by default.</li>
+        <li><strong>Only real numbers.</strong> Missing values are <code>null</code>, never estimated.</li>
       </ul>
     </section>
 
     <section class="wrap" id="start">
       <h2>Quick start</h2>
-      <p>Run it one of three ways. The first start prints an admin token; the UI is on port 8080.</p>
-      <h3>Docker</h3>
+
+      <div class="qs">
+        <div class="qs-step">
+          <h3><span class="n">1</span>Run it</h3>
+          <p>The first start prints an admin token; the UI is on port 8080.</p>
+          <div class="tabs" data-tabs>
+            <div class="tablist" role="tablist" aria-label="Install method" hidden>
+              <button role="tab" type="button">Docker</button>
+              <button role="tab" type="button">Fly.io</button>
+              <button role="tab" type="button">From source</button>
+            </div>
+            <div class="panel" role="tabpanel">
+              <h4>Docker</h4>
 <pre><code>docker run -d --name agg -p 8080:8080 -v agg-data:/data ghcr.io/worotyns/agg:latest
 docker logs agg        # shows the admin token</code></pre>
-      <h3>Fly.io</h3>
-<pre><code>git clone https://github.com/worotyns/agg && cd agg
+            </div>
+            <div class="panel" role="tabpanel">
+              <h4>Fly.io</h4>
+<pre><code>git clone https://github.com/worotyns/agg &amp;&amp; cd agg
 # edit app and AGG_PUBLIC_URL in deploy/fly/fly.toml, then:
 fly apps create agg-example
 fly volumes create agg_data --size 1 --region waw -c deploy/fly/fly.toml
 fly secrets set AGG_ADMIN_TOKEN=$(openssl rand -hex 24) -c deploy/fly/fly.toml
 fly deploy -c deploy/fly/fly.toml</code></pre>
-      <p class="note">One machine with a volume for the SQLite database; details in the
-        <a href="https://github.com/worotyns/agg#deploy-on-flyio">README</a>.</p>
-      <h3>From source</h3>
-<pre><code>git clone https://github.com/worotyns/agg && cd agg
+              <p class="note">One machine with a volume for the SQLite database; details in the
+                <a href="https://github.com/worotyns/agg#deploy-on-flyio">README</a>.</p>
+            </div>
+            <div class="panel" role="tabpanel">
+              <h4>From source</h4>
+<pre><code>git clone https://github.com/worotyns/agg &amp;&amp; cd agg
 go build -o agg ./cmd/agg   # Go 1.27+
 ./agg serve                 # prints the admin token, UI on http://localhost:8080</code></pre>
-      <p>Log in, create a site and add its snippet to your pages:</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="qs-step">
+          <h3><span class="n">2</span>Add the snippet</h3>
+          <p>Log in, create a site and add its snippet to your pages. Page views, visitors, top pages and referrers
+            work right away.</p>
 <pre><code>&lt;script async src="https://agg.example.com/agg.js" data-site="pk_…"&gt;&lt;/script&gt;</code></pre>
-      <p>Page views, visitors, top 10 pages and referrers work right away. For product insights, send events from your
-        app and pick a template (feature usage, active users, sign-ups per plan…); the tester shows what will be
-        counted on your real recent events before you save.</p>
+        </div>
+
+        <div class="qs-step">
+          <h3><span class="n">3</span>Send your events</h3>
+          <p>Send events from your app and pick a template (feature usage, active users, sign-ups per plan…); the
+            tester shows what will be counted on your real recent events before you save.</p>
 <pre><code>agg.track('feature_used', { feature: 'export_pdf' })</code></pre>
-      <p>No browser needed: a backend, a cron job or a CI pipeline posts the same events over HTTP. An <code>id</code>
-        makes a retried webhook count once.</p>
+          <p>No browser needed: a backend, a cron job or a CI pipeline posts the same events over HTTP. An
+            <code>id</code> makes a retried webhook count once.</p>
 <pre><code>curl -X POST https://agg.example.com/e -H 'Content-Type: application/json' \
   -d '{"site":"pk_…","events":[{"name":"invoice_paid","id":"inv-42","props":{"amount":49}}]}'</code></pre>
-      <p class="note">More examples, limits and headers in the
-        <a href="https://github.com/worotyns/agg/blob/main/docs/api.md#from-a-backend-a-script-or-ci-curl">HTTP API docs</a>.</p>
+          <p class="note">More examples, limits and headers in the
+            <a href="https://github.com/worotyns/agg/blob/main/docs/api.md#from-a-backend-a-script-or-ci-curl">HTTP API docs</a>.</p>
+        </div>
+      </div>
     </section>
 
     <section class="wrap" id="not">
-      <h2>What it is not</h2>
-      <p>It is not a full web analytics suite: no sessions, funnels, user profiles or session replay. It does not render
-        widgets or pop-ups on your site; it gives you the numbers and an API to build them on.</p>
-      <p>It is source-available under the Elastic License 2.0: free to use, modify and self-host, also commercially;
-        not to be resold as a hosted service.</p>
+      <div class="callout">
+        <h2>What it is not</h2>
+        <p>It is not a full web analytics suite: no sessions, funnels, user profiles or session replay. It does not
+          render widgets or pop-ups on your site; it gives you the numbers and an API to build them on.</p>
+        <p>It is source-available under the Elastic License 2.0: free to use, modify and self-host, also
+          commercially; not to be resold as a hosted service.</p>
+        <div class="cta">
+          <a class="btn primary" href="#start">Get started</a>
+          <a class="btn" href="https://github.com/worotyns/agg/tree/main/docs">Read the docs</a>
+        </div>
+      </div>
     </section>
   </main>
 
-  <footer class="wrap">
-    <span>agg · self-hosted · <a href="https://github.com/worotyns/agg/blob/main/LICENSE">Elastic License 2.0</a> · by Mateusz Worotynski</span>
-    <span><a href="https://github.com/worotyns/agg">GitHub</a> · <a href="https://github.com/worotyns/agg/tree/main/docs">Docs</a> · <a href="llms.txt">llms.txt</a></span>
+  <footer>
+    <div class="wrap foot-in">
+      <span>agg · <a href="https://github.com/worotyns/agg/blob/main/LICENSE">Elastic License 2.0</a> · by Mateusz Worotynski</span>
+      <span><a href="https://github.com/worotyns/agg">GitHub</a> · <a href="https://github.com/worotyns/agg/tree/main/docs">Docs</a> · <a href="llms.txt">llms.txt</a></span>
+    </div>
   </footer>
+
+  <script>
+    // Tabs: without JS all install methods are shown one under another.
+    document.querySelectorAll('[data-tabs]').forEach(function (box, b) {
+      var list = box.querySelector('[role=tablist]');
+      var tabs = list.querySelectorAll('[role=tab]');
+      var panels = box.querySelectorAll('[role=tabpanel]');
+      function select(i, focus) {
+        tabs.forEach(function (t, j) {
+          t.setAttribute('aria-selected', i === j);
+          t.tabIndex = i === j ? 0 : -1;
+          panels[j].hidden = i !== j;
+        });
+        if (focus) tabs[i].focus();
+      }
+      tabs.forEach(function (t, i) {
+        t.id = 'tab' + b + '-' + i;
+        panels[i].id = 'panel' + b + '-' + i;
+        t.setAttribute('aria-controls', panels[i].id);
+        panels[i].setAttribute('aria-labelledby', t.id);
+        t.addEventListener('click', function () { select(i); });
+        t.addEventListener('keydown', function (e) {
+          var d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+          if (d) select((i + d + tabs.length) % tabs.length, true);
+        });
+      });
+      box.classList.add('js');
+      list.hidden = false;
+      select(0);
+    });
+
+    // Copy buttons on code blocks.
+    if (navigator.clipboard) document.querySelectorAll('pre').forEach(function (pre) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'copy';
+      btn.textContent = 'Copy';
+      btn.addEventListener('click', function () {
+        navigator.clipboard.writeText(pre.querySelector('code').textContent).then(function () {
+          btn.textContent = 'Copied';
+          setTimeout(function () { btn.textContent = 'Copy'; }, 1500);
+        });
+      });
+      var box = document.createElement('div');
+      box.className = 'code';
+      pre.parentNode.insertBefore(box, pre);
+      box.appendChild(pre);
+      box.appendChild(btn);
+    });
+  </script>
 </body>
 </html>
