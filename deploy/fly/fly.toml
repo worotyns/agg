@@ -18,6 +18,8 @@ kill_timeout = "10s"
   AGG_CLIENT_IP_HEADER = "Fly-Client-IP"
   # X-Forwarded-Proto tells agg the public scheme is https (secure cookies).
   AGG_TRUST_PROXY = "true"
+  # With the lookup app from geoip.fly.toml (README: "Geolocation"):
+  # AGG_GEOIP_URL = "http://agg-example-geoip.internal:8082"
   # AGG_DB=/data/agg.db and AGG_ADDR=:8080 are set in the image.
   # Secrets go to `fly secrets set`, not here: AGG_ADMIN_TOKEN, AGG_INTERNAL_METRICS_TOKEN.
 

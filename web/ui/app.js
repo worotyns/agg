@@ -328,6 +328,11 @@ agg.track('purchase', { order_id: 'A-1001', value: 120, currency: 'EUR' }, 'A-10
           <span>Visitor id: a random id in localStorage, needed to count distinct visitors. No cookies, no fingerprinting.</span></label>
         <label class="check"><input type="checkbox" checked=${cfg.collectIp} onChange=${(e) => set('collectIp', e.target.checked)} />
           <span>Store the client IP in <code>meta.ip</code> (personal data; off by default)</span></label>
+        ${meta.geo?.enabled && html`<label class="field"><span>Location from IP</span>
+          <select value=${cfg.geo || 'country'} onChange=${(e) => set('geo', e.target.value)}>
+            <option value="off">Off</option><option value="country">Country</option><option value="city">City</option></select>
+          <div class="hint">Looked up by your GeoIP service; the IP itself is not stored unless the option above is on.
+            This product includes GeoLite2 data created by MaxMind, available from <a href="https://www.maxmind.com" target="_blank" rel="noopener">https://www.maxmind.com</a></div></label>`}
         <label class="check"><input type="checkbox" checked=${cfg.requireConsent} onChange=${(e) => set('requireConsent', e.target.checked)} />
           <span>Wait for consent: nothing is sent or stored until your consent banner calls <code>agg.consent({ analytics: true })</code></span></label>
       </fieldset>

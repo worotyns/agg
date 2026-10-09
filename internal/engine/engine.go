@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/worotyns/agg/internal/geo"
 	"github.com/worotyns/agg/internal/model"
 	"github.com/worotyns/agg/internal/privacy"
 	"github.com/worotyns/agg/internal/store"
@@ -26,6 +27,7 @@ type Options struct {
 	MaxEventsPerRequest int           // default 100
 	MaxPropsBytes       int           // default 8192
 	DedupeTTL           time.Duration // default 48h
+	Geo                 *geo.Client   // optional GeoIP lookup client; nil = no location meta
 }
 
 func (o *Options) defaults() {
@@ -313,7 +315,8 @@ func OriginAllowed(allowed []string, origin string) bool {
 // Ingest validates, enriches and processes a batch of events for a site.
 //
 // Every event gets meta: the client's page context (path, referrer, language) plus browser, os and device parsed
-// from the User-Agent, and the IP when the site collects it. Automatic page views from bots are dropped;
+// from the User-Agent, country (and city) from the IP when a GeoIP client is set and the site's geo mode allows it,
+// and the IP itself when the site collects it. Automatic page views from bots are dropped;
 // other events from bots are kept with meta.bot = true.
 func (e *Engine) Ingest(siteKey, origin string, req RequestInfo, events []IncomingEvent) (IngestResult, error) {
 	var res IngestResult
@@ -333,6 +336,12 @@ func (e *Engine) Ingest(siteKey, origin string, req RequestInfo, events []Incomi
 	e.Stats.Received.Add(int64(len(events)))
 	now := e.Now()
 	ua := ParseUserAgent(req.UserAgent)
+	var loc geo.Info
+	if mode := ss.site.Config.Geo; mode != model.GeoOff && req.IP != "" {
+		if loc = e.opts.Geo.Lookup(context.Background(), req.IP); mode != model.GeoCity {
+			loc.City = ""
+		}
+	}
 	clean := make([]model.Event, 0, len(events))
 	for _, in := range events {
 		ev, ok := e.sanitize(ss, in)
@@ -346,7 +355,7 @@ func (e *Engine) Ingest(siteKey, origin string, req RequestInfo, events []Incomi
 			res.Dropped++
 			continue
 		}
-		ev.Meta = buildMeta(in.Meta, ua, req.IP, ss.site.Config.CollectIP)
+		ev.Meta = buildMeta(in.Meta, ua, req.IP, ss.site.Config.CollectIP, loc)
 		ev.ReceivedAt = now.UnixMilli()
 		clean = append(clean, ev)
 	}
@@ -410,7 +419,7 @@ func (e *Engine) sanitize(ss *siteState, in IncomingEvent) (model.Event, bool) {
 	return ev, true
 }
 
-func buildMeta(client map[string]any, ua UserAgent, ip string, collectIP bool) map[string]any {
+func buildMeta(client map[string]any, ua UserAgent, ip string, collectIP bool, loc geo.Info) map[string]any {
 	m := map[string]any{}
 	for _, k := range clientMeta {
 		if v, ok := client[k].(string); ok {
@@ -424,6 +433,12 @@ func buildMeta(client map[string]any, ua UserAgent, ip string, collectIP bool) m
 	}
 	if ua.Bot {
 		m["bot"] = true
+	}
+	if loc.Country != "" {
+		m["country"] = loc.Country
+	}
+	if loc.City != "" {
+		m["city"] = truncate(loc.City, 200)
 	}
 	if collectIP && ip != "" {
 		m["ip"] = ip

@@ -69,6 +69,12 @@ var website = Preset{
 		}()},
 		{"browsers", grouped(pinned("Browsers", pv, model.OpCountDistinct), "browser", "meta.browser", "")},
 		{"devices", grouped(pinned("Devices", pv, model.OpCountDistinct), "device", "meta.device", "")},
+		// not pinned: stays empty (and out of the way) unless GeoIP is configured
+		{"countries", func() model.AggregateDef {
+			d := grouped(pinned("Page views by country", pv, model.OpCount), "country", "meta.country", "")
+			d.Pinned, d.Where = false, `meta.country != nil`
+			return d
+		}()},
 	},
 	Formulas: []Formula{{"views_per_visitor", "Page views per visitor", "round(page_views_24h / visitors_24h * 10) / 10", "number"}},
 	Alerts: []Alert{{"no_traffic", model.AlertDef{Title: "No page views for 6 hours", Condition: "page_views_total > 0 && page_views_6h < 1",

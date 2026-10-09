@@ -47,6 +47,7 @@ Every event carries `meta`, filled in for you:
 | `meta.language` | browser language |
 | `meta.browser`, `meta.os`, `meta.device` | parsed on the server from the User-Agent: Chrome / Safari / Firefox / Edge / …, macOS / Windows / iOS / Android / …, desktop / mobile / tablet |
 | `meta.bot` | `true` for crawlers and scripts; automatic page views from bots are not stored |
+| `meta.country`, `meta.city` | looked up from the client IP when the server has `AGG_GEOIP_URL` set and the site enables it in Settings (country by default; the IP is not stored) |
 | `meta.ip` | client IP, only if the site enables "Store the client IP" (off by default) |
 
 Use them like props: group page views by `meta.path`, sign-ups by `meta.device`, filter with `meta.browser == "Safari"`.

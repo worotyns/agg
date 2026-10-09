@@ -109,6 +109,7 @@ agg.track('purchase', { order_id: 'A-1001', value: 258, currency: 'EUR' }, 'A-10
             <tr><td class="mono">meta.referrer</td><td>external referrer host, on the first page view of a visit</td></tr>
             <tr><td class="mono">meta.language</td><td>browser language</td></tr>
             <tr><td class="mono">meta.browser, meta.os, meta.device</td><td>parsed on the server from the User-Agent (desktop / mobile / tablet)</td></tr>
+            <tr><td class="mono">meta.country, meta.city</td><td>ISO country code, and city when chosen, looked up from the client IP when GeoIP is configured on the server and enabled in Settings</td></tr>
             <tr><td class="mono">meta.bot</td><td><code>true</code> for crawlers and scripts; automatic page views from bots are not stored</td></tr>
             <tr><td class="mono">meta.ip</td><td>client IP, only when “Store the client IP” is on in Settings</td></tr>
             <tr><td class="mono">visitor</td><td>random id from <code>localStorage</code> (when the visitor id is on); used for distinct counts</td></tr>

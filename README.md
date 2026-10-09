@@ -166,6 +166,7 @@ Flags or environment variables:
 | `-max-keys-per-aggregate` | `AGG_MAX_KEYS_PER_AGGREGATE` | `50000` | cap on distinct group values per aggregate |
 | `-trust-proxy` | `AGG_TRUST_PROXY` | off | use `X-Forwarded-For` / `X-Forwarded-Proto` from your reverse proxy |
 | `-client-ip-header` | `AGG_CLIENT_IP_HEADER` | off | header your proxy sets to the client IP (`Fly-Client-IP`, `CF-Connecting-IP`); preferred over `X-Forwarded-For`, whose first entry a client can forge |
+| `-geoip-url` | `AGG_GEOIP_URL` | off | base URL of a GeoIP lookup service, e.g. `http://geoip:8082`; adds `meta.country` / `meta.city` (see [Geolocation](#geolocation-optional)) |
 | `-internal-metrics-token` | `AGG_INTERNAL_METRICS_TOKEN` | off | enables `/internal/metrics` (ingest rate, flush time, DB size) with this bearer token |
 | `-vapid-subject` | `AGG_VAPID_SUBJECT` | public URL | contact sent to Web Push services (`mailto:` or `https:`) |
 
@@ -201,6 +202,46 @@ fly open --config deploy/fly/fly.toml
 - Custom domain: `fly certs add agg.example.com --config deploy/fly/fly.toml`, point DNS at the app, and update
   `AGG_PUBLIC_URL`.
 - Backups: `fly volumes snapshots list` (Fly snapshots volumes daily), or run Litestream next to agg.
+
+## Geolocation (optional)
+
+With `AGG_GEOIP_URL` set, agg looks up the client IP at ingest and adds `meta.country` (ISO code, e.g. `PT`) and, if chosen
+per site in **Settings** (country is the default, or off), `meta.city`. Group by them in aggregates (`meta.country`); the website preset adds "Page views by
+country". Without the variable nothing changes: no lookups, no extra meta, no UI.
+
+The IP is sent only to your lookup service and is not stored unless **Store the client IP** is on. Lookups time out after
+300 ms, results are cached for an hour, and agg pauses lookups for 30 s after a failure, so a slow or unavailable service
+never delays ingestion.
+
+agg does not read or download GeoIP databases itself. It needs a lookup service (sidecar) with this contract:
+`GET {base}/lookup?ip=1.2.3.4` returns JSON with `country_iso` (and `city`, `has_data`); 400 for a bad IP, 503 while its
+database is loading; `GET {base}/ready` returns 200 once loaded. Such a service needs a free
+[MaxMind GeoLite2](https://www.maxmind.com/en/geolite2/signup) account and must keep its database on a persistent
+volume, otherwise it downloads it again on every restart (MaxMind limits downloads per day). The examples below use a
+service configured with `GEOIPLITE2_ACCOUNT_ID`, `GEOIPLITE2_LICENSE_KEY`, `GEOIPLITE2_DATA_DIR` and `GEOIPLITE2_PORT`
+(default 8082).
+
+**Docker Compose:** the `geoip` service is behind the `geo` profile and keeps its database in `/data/geoip` on the
+existing `agg-data` volume (next to, never over, `agg.db`). Uncomment `AGG_GEOIP_URL` in the `agg` service, then:
+
+```sh
+MAXMIND_ACCOUNT_ID=… MAXMIND_LICENSE_KEY=… AGG_GEOIP_IMAGE=<your lookup service image> docker compose --profile geo up -d
+```
+
+**Plain Docker:** put both containers on one network and mount the same volume:
+
+```sh
+docker network create agg-net
+docker run -d --name geoip --network agg-net -v agg-data:/data -e GEOIPLITE2_DATA_DIR=/data/geoip \
+  -e GEOIPLITE2_ACCOUNT_ID=… -e GEOIPLITE2_LICENSE_KEY=… <your lookup service image>
+docker run -d --name agg --network agg-net -v agg-data:/data -p 8080:8080 -e AGG_GEOIP_URL=http://geoip:8082 ghcr.io/worotyns/agg
+```
+
+**Fly.io:** run the lookup service as a separate private app (no public IP) with its own volume, because a Fly volume
+belongs to one machine and cannot be shared with agg. See [`deploy/fly/geoip.fly.toml`](deploy/fly/geoip.fly.toml), then set
+`AGG_GEOIP_URL = "http://<geoip app>.internal:8082"` in agg's `[env]`.
+
+This product includes GeoLite2 data created by MaxMind, available from <https://www.maxmind.com>.
 
 ## Documentation
 

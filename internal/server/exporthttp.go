@@ -139,6 +139,10 @@ func (s *Server) handleInternalMetrics(w http.ResponseWriter, r *http.Request) {
 	metric("agg_flush_errors_total", "counter", "Failed flushes to storage.", float64(st.FlushErrors.Load()), "")
 	metric("agg_flush_duration_seconds", "gauge", "Duration of the last flush.", float64(st.FlushMicros.Load())/1e6, "")
 	metric("agg_pending_raw_events", "gauge", "Raw events buffered in memory, not yet flushed.", float64(st.PendingRaw.Load()), "")
+	if g := s.eng.Options().Geo; g != nil {
+		metric("agg_geoip_lookups_total", "counter", "Requests sent to the GeoIP service (cache hits not counted).", float64(g.Lookups.Load()), "")
+		metric("agg_geoip_lookup_failures_total", "counter", "GeoIP requests that failed (timeout, error, service not ready).", float64(g.Failures.Load()), "")
+	}
 	if size, err := s.st.DBSize(r.Context()); err == nil {
 		metric("agg_db_size_bytes", "gauge", "Size of the SQLite database file.", float64(size), "")
 	}

@@ -1,0 +1,28 @@
+# Optional GeoIP lookup service for agg, as a separate private Fly app (README: "Geolocation").
+# No [http_service]: no public IP; agg reaches it at http://<app>.internal:8082 over Fly's private network.
+# It has its own volume: a Fly volume belongs to one machine and cannot be shared with agg's.
+# Replace GEOIP_IMAGE below with your lookup service image. Steps:
+#   fly apps create agg-example-geoip
+#   fly volumes create geoip_data --size 1 --region waw --config deploy/fly/geoip.fly.toml
+#   fly secrets set GEOIPLITE2_ACCOUNT_ID=… GEOIPLITE2_LICENSE_KEY=… --config deploy/fly/geoip.fly.toml
+#   fly deploy --config deploy/fly/geoip.fly.toml
+
+app = "agg-example-geoip"
+primary_region = "waw"
+
+[build]
+  image = "GEOIP_IMAGE"
+
+[env]
+  GEOIPLITE2_DATA_DIR = "/data/geoip"
+  GEOIPLITE2_PORT = "8082"
+
+# The database lives on the volume, so a restart does not download it again.
+[mounts]
+  source = "geoip_data"
+  destination = "/data"
+  initial_size = "1gb"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

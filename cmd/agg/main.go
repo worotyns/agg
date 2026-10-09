@@ -18,6 +18,7 @@ import (
 
 	"github.com/worotyns/agg/internal/alert"
 	"github.com/worotyns/agg/internal/engine"
+	"github.com/worotyns/agg/internal/geo"
 	"github.com/worotyns/agg/internal/server"
 	"github.com/worotyns/agg/internal/store"
 	"github.com/worotyns/agg/internal/webpush"
@@ -87,9 +88,9 @@ func main() {
 }
 
 type serveOpts struct {
-	addr, db, adminToken, publicURL, metricsToken, vapidSubject, clientIPHeader *string
-	retention, maxKeys                                                          *int
-	trustProxy                                                                  *bool
+	addr, db, adminToken, publicURL, metricsToken, vapidSubject, clientIPHeader, geoipURL *string
+	retention, maxKeys                                                                    *int
+	trustProxy                                                                            *bool
 }
 
 var opts serveOpts
@@ -105,6 +106,7 @@ func serveFlags(fs *flag.FlagSet) *flag.FlagSet {
 		maxKeys:      fs.Int("max-keys-per-aggregate", envInt("AGG_MAX_KEYS_PER_AGGREGATE", 50000), "cap on distinct group values per aggregate [AGG_MAX_KEYS_PER_AGGREGATE]"),
 		vapidSubject: fs.String("vapid-subject", env("AGG_VAPID_SUBJECT", ""), "contact for Web Push services, mailto: or https: URL; default: the public URL [AGG_VAPID_SUBJECT]"),
 		trustProxy:   fs.Bool("trust-proxy", env("AGG_TRUST_PROXY", "") == "1" || env("AGG_TRUST_PROXY", "") == "true", "trust X-Forwarded-For/-Proto from a reverse proxy [AGG_TRUST_PROXY]"),
+		geoipURL:     fs.String("geoip-url", env("AGG_GEOIP_URL", ""), "base URL of a GeoIP lookup service, e.g. http://geoip:8082; enables meta.country/meta.city [AGG_GEOIP_URL]"),
 		clientIPHeader: fs.String("client-ip-header", env("AGG_CLIENT_IP_HEADER", ""),
 			"header set by your proxy with the client IP, e.g. Fly-Client-IP or CF-Connecting-IP; preferred over X-Forwarded-For [AGG_CLIENT_IP_HEADER]"),
 	}
@@ -128,7 +130,14 @@ func serve(log *slog.Logger, args []string) error {
 		fmt.Fprintf(os.Stderr, "\n  Admin token (shown once, keep it safe): %s\n  Lost it? Run: agg reset-admin-token -db %s\n\n", t, *opts.db)
 	}
 
-	eng := engine.New(st, log, engine.Options{RawRetentionDays: *opts.retention, MaxKeysPerAggregate: *opts.maxKeys})
+	eopts := engine.Options{RawRetentionDays: *opts.retention, MaxKeysPerAggregate: *opts.maxKeys}
+	if *opts.geoipURL != "" {
+		if eopts.Geo, err = geo.New(*opts.geoipURL, log); err != nil {
+			return err
+		}
+		log.Info("geoip enabled", "url", *opts.geoipURL)
+	}
+	eng := engine.New(st, log, eopts)
 	if err := eng.Start(ctx); err != nil {
 		return err
 	}

@@ -3,11 +3,15 @@ package engine_test
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/worotyns/agg/internal/engine"
+	"github.com/worotyns/agg/internal/geo"
 	"github.com/worotyns/agg/internal/model"
 	"github.com/worotyns/agg/internal/query"
 	"github.com/worotyns/agg/internal/store"
@@ -426,5 +430,83 @@ func TestMetaEnrichmentAndBots(t *testing.T) {
 	evs, _ = f.St.RecentEvents(context.Background(), f.Site.ID, store.EventQuery{Limit: 1})
 	if evs[0].Meta["ip"] != "203.0.113.7" {
 		t.Errorf("collectIp: meta %v", evs[0].Meta)
+	}
+}
+
+// geoFixture is a fixture whose engine looks locations up in a fake GeoIP service; n counts its requests.
+func geoFixture(t *testing.T) (f *testutil.Fixture, n *atomic.Int64) {
+	n = new(atomic.Int64)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n.Add(1)
+		w.Write([]byte(`{"city":"Lisbon","country_iso":"PT","country":"Portugal","latitude":38.7,"has_data":true}`))
+	}))
+	t.Cleanup(srv.Close)
+	g, err := geo.New(srv.URL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f = testutil.New(t)
+	f.Eng = engine.New(f.St, f.Log, engine.Options{Geo: g})
+	f.Eng.Now = func() time.Time { return f.Now }
+	f.Reload()
+	return f, n
+}
+
+func lastMeta(t *testing.T, f *testutil.Fixture, ip string) map[string]any {
+	t.Helper()
+	if _, err := f.Eng.Ingest(f.Site.PublicKey, "", engine.RequestInfo{UserAgent: testutil.TestUA, IP: ip}, []engine.IncomingEvent{{Name: "sign_up"}}); err != nil {
+		t.Fatal(err)
+	}
+	f.Eng.Flush(context.Background())
+	evs, _ := f.St.RecentEvents(context.Background(), f.Site.ID, store.EventQuery{Limit: 1})
+	return evs[0].Meta
+}
+
+func setGeo(f *testutil.Fixture, mode string, collectIP bool) {
+	f.Site.Config.Geo, f.Site.Config.CollectIP = mode, collectIP
+	f.St.UpdateSite(context.Background(), &f.Site)
+	f.Reload()
+}
+
+func TestGeoMeta(t *testing.T) {
+	f, n := geoFixture(t)
+	m := lastMeta(t, f, "85.0.0.1") // default mode: country, and no ip because collectIp is off
+	if m["country"] != "PT" || m["city"] != nil || m["ip"] != nil {
+		t.Errorf("country mode: %v", m)
+	}
+	setGeo(f, model.GeoCity, false)
+	if m = lastMeta(t, f, "85.0.0.1"); m["country"] != "PT" || m["city"] != "Lisbon" || m["ip"] != nil {
+		t.Errorf("city mode: %v", m)
+	}
+	setGeo(f, model.GeoCountry, true)
+	if m = lastMeta(t, f, "85.0.0.1"); m["country"] != "PT" || m["ip"] != "85.0.0.1" {
+		t.Errorf("collectIp: %v", m)
+	}
+	before := n.Load()
+	setGeo(f, model.GeoOff, false)
+	if m = lastMeta(t, f, "85.0.0.9"); m["country"] != nil || m["city"] != nil || n.Load() != before {
+		t.Errorf("off must add nothing and call nothing: %v (%d requests)", m, n.Load()-before)
+	}
+}
+
+func TestNoGeoClientLeavesMetaUnchanged(t *testing.T) {
+	f := testutil.New(t) // default site config has geo "country", but there is no client
+	want := map[string]any{"browser": "Chrome", "os": "macOS", "device": "desktop"}
+	m := lastMeta(t, f, "85.0.0.1")
+	if len(m) != len(want) {
+		t.Errorf("meta %v, want %v", m, want)
+	}
+}
+
+func TestGeoModeNormalization(t *testing.T) {
+	for in, want := range map[string]string{"": "country", "bogus": "country", "off": "off", "city": "city", "country": "country"} {
+		c := model.SiteConfig{Geo: in}
+		c.Normalize()
+		if c.Geo != want {
+			t.Errorf("geo %q normalized to %q, want %q", in, c.Geo, want)
+		}
+	}
+	if model.DefaultSiteConfig().Geo != model.GeoCountry {
+		t.Error("default must be country")
 	}
 }

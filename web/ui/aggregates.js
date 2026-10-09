@@ -220,7 +220,7 @@ function ExpressionHelp() {
   return html`
     <details><summary>Expression reference</summary>
       <div class="small muted">
-        <p><code>event</code> event name · <code>props</code> what you sent · <code>meta</code> added by agg: <code>meta.path</code>, <code>meta.referrer</code>, <code>meta.language</code>, <code>meta.browser</code>, <code>meta.os</code>, <code>meta.device</code> (desktop, mobile, tablet), <code>meta.bot</code>, <code>meta.ip</code> (if enabled) ·
+        <p><code>event</code> event name · <code>props</code> what you sent · <code>meta</code> added by agg: <code>meta.path</code>, <code>meta.referrer</code>, <code>meta.language</code>, <code>meta.browser</code>, <code>meta.os</code>, <code>meta.device</code> (desktop, mobile, tablet), <code>meta.country</code>, <code>meta.city</code> (if GeoIP is set up), <code>meta.bot</code>, <code>meta.ip</code> (if enabled) ·
           <code>item</code> current element when exploding · <code>visitor</code> visitor id · <code>ts</code> unix time.</p>
         <p>Operators: <code>== != &lt; &gt; &lt;= &gt;=</code>, <code>&& || !</code>, <code>in</code> (<code>props.currency in ["EUR", "PLN"]</code>), <code>contains</code>, <code>startsWith</code>, <code>matches</code> (regex), <code>+ - * /</code>, <code>??</code> (default: <code>item.quantity ?? 1</code>).</p>
         <p>Missing fields are <code>nil</code>; an event whose Where fails or errors is not counted.</p>

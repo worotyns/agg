@@ -11,6 +11,19 @@ services:
     volumes: ["agg-data:/data"]
     environment:
       AGG_PUBLIC_URL: http://localhost:8080
+      # AGG_GEOIP_URL: http://geoip:8082   # with --profile geo
+    restart: unless-stopped
+
+  # Optional location lookup (README: "Geolocation"): AGG_GEOIP_IMAGE=… docker compose --profile geo up -d
+  # Its database lives in /data/geoip on the agg-data volume, so it survives restarts and never touches agg.db.
+  geoip:
+    profiles: ["geo"]
+    image: ${AGG_GEOIP_IMAGE:-agg-geoip}   # your lookup service image; a default keeps `up -d agg` working without it
+    volumes: ["agg-data:/data"]
+    environment:
+      GEOIPLITE2_ACCOUNT_ID: ${MAXMIND_ACCOUNT_ID}
+      GEOIPLITE2_LICENSE_KEY: ${MAXMIND_LICENSE_KEY}
+      GEOIPLITE2_DATA_DIR: /data/geoip
     restart: unless-stopped
 
   prometheus:

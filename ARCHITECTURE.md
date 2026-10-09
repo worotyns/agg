@@ -31,6 +31,7 @@ a JSON values API, Prometheus, alerts and an MCP server for AI assistants.
 | `internal/webpush` | Web Push without dependencies: VAPID (RFC 8292) and payload encryption (RFC 8291) |
 | `internal/export` | Prometheus text format and JSON exports |
 | `internal/preset` | ready-made setups (website, shop, saas, publisher) |
+| `internal/geo` | optional country/city lookup of the client IP through an external GeoIP service (cache, circuit breaker) |
 | `internal/privacy` | server-side removal of personal-data property names |
 | `internal/testutil` | real store + engine + querier with a controllable clock, for tests |
 | `web/sdk` | `agg.js`, the browser SDK (plain ES5, no build step) and its tests |
@@ -71,7 +72,7 @@ POST /e
   → per-IP rate limit (50 req/s, burst 200), size limits, Origin check against the site's allowed origins
   → engine.Ingest, per event:
       normalize the name, drop oversized props, remove blocked property names (privacy filter)
-      add meta: path, referrer, language from the client; browser, os, device, bot from the User-Agent; ip if enabled
+      add meta: path, referrer, language from the client; browser, os, device, bot from the User-Agent; country (and city) from the IP if `AGG_GEOIP_URL` is set and the site allows it; ip if enabled
       drop automatic page views from bots
       per-visitor cap (300 events/min), dedupe by event id (48 h)
       for each aggregate listening to the event name: where → explode → groupBy/rankBy → value → delta
@@ -143,7 +144,7 @@ start) and to an optional webhook (Slack/Mattermost/Discord compatible).
 - **Brute-force protection**: wrong admin/API tokens are limited to 5 attempts per minute per client IP, shared across
   UI login, Bearer requests and MCP. A blocked client gets HTTP 429 with `Retry-After`, even with a correct token.
 - **Privacy**: property names such as `email`, `phone`, `password`, `card_number` are removed on the server at any depth;
-  IP addresses are stored only when a site enables it; the visitor id is random and kept in `localStorage`.
+  IP addresses are stored only when a site enables it; with GeoIP on, the IP is sent to the configured lookup service and only the country code (and city, if the site chose it) is kept; the visitor id is random and kept in `localStorage`.
 - Behind a reverse proxy, run with `-trust-proxy` so the client IP comes from `X-Forwarded-For`, or better with
   `-client-ip-header` (e.g. `Fly-Client-IP`, `CF-Connecting-IP`): a header the proxy always overwrites, unlike the
   first `X-Forwarded-For` entry, which a client can forge.

@@ -2,11 +2,14 @@ package engine_test
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/worotyns/agg/internal/engine"
+	"github.com/worotyns/agg/internal/geo"
 	"github.com/worotyns/agg/internal/model"
 	"github.com/worotyns/agg/internal/testutil"
 )
@@ -91,6 +94,43 @@ func BenchmarkIngestAndFlush(b *testing.B) {
 	}
 	if err := f.Eng.Flush(ctx); err != nil {
 		b.Fatal(err)
+	}
+	b.ReportMetric(float64(b.N*50)/b.Elapsed().Seconds(), "events/s")
+}
+
+// BenchmarkIngestGeoCached is BenchmarkIngest with GeoIP on and the client IP in the cache (the steady state).
+func BenchmarkIngestGeoCached(b *testing.B) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"city":"Lisbon","country_iso":"PT","has_data":true}`))
+	}))
+	defer srv.Close()
+	g, err := geo.New(srv.URL, nil)
+	if err != nil {
+		b.Fatal(err)
+	}
+	f := benchFixture(b)
+	f.Eng = engine.New(f.St, f.Log, engine.Options{Geo: g})
+	f.Eng.Now = func() time.Time { return f.Now }
+	f.Reload()
+	key := f.Site.PublicKey
+	batches := make([][]engine.IncomingEvent, 1000)
+	for i := range batches {
+		batches[i] = benchBatch(i)
+	}
+	ctx := context.Background()
+	req := engine.RequestInfo{UserAgent: testutil.TestUA, IP: "85.0.0.1"}
+	f.Eng.Ingest(key, "", req, batches[0]) // warm the cache
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := f.Eng.Ingest(key, "", req, batches[i%len(batches)]); err != nil {
+			b.Fatal(err)
+		}
+		if i%1000 == 999 {
+			b.StopTimer()
+			f.Eng.Flush(ctx)
+			b.StartTimer()
+		}
 	}
 	b.ReportMetric(float64(b.N*50)/b.Elapsed().Seconds(), "events/s")
 }

@@ -26,13 +26,20 @@ type SiteConfig struct {
 	PageViews      bool     `json:"pageViews"`
 	RequireConsent bool     `json:"requireConsent"`
 	CollectIP      bool     `json:"collectIp"`
+	Geo            string   `json:"geo"` // location from the client IP: GeoOff, GeoCountry or GeoCity (needs AGG_GEOIP_URL)
 }
+
+const (
+	GeoOff     = "off"
+	GeoCountry = "country"
+	GeoCity    = "city"
+)
 
 func DefaultSiteConfig() SiteConfig {
-	return SiteConfig{AllowedOrigins: []string{}, BlockedFields: []string{}, VisitorID: true, PageViews: true}
+	return SiteConfig{AllowedOrigins: []string{}, BlockedFields: []string{}, VisitorID: true, PageViews: true, Geo: GeoCountry}
 }
 
-// Normalize fills nil slices so the JSON never contains null lists.
+// Normalize fills nil slices so the JSON never contains null lists, and defaults an unknown geo mode to country.
 func (c *SiteConfig) Normalize() {
 	clean := func(in []string, f func(string) string) []string {
 		out := []string{}
@@ -48,6 +55,9 @@ func (c *SiteConfig) Normalize() {
 	}
 	c.AllowedOrigins = clean(c.AllowedOrigins, func(s string) string { return strings.TrimRight(strings.ToLower(s), "/") })
 	c.BlockedFields = clean(c.BlockedFields, strings.ToLower)
+	if c.Geo != GeoOff && c.Geo != GeoCity {
+		c.Geo = GeoCountry
+	}
 }
 
 type Op string

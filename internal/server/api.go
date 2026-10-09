@@ -38,6 +38,7 @@ func (s *Server) handleMeta(w http.ResponseWriter, r *http.Request) {
 		"baseBlockedFields": privacy.BaseBlockedFields,
 		"rawRetentionDays":  s.eng.Options().RawRetentionDays,
 		"units":             query.FormulaUnits,
+		"geo":               map[string]any{"enabled": s.eng.Options().Geo != nil},
 	})
 }
 

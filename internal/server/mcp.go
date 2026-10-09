@@ -432,6 +432,7 @@ var mcpTools = []mcpTool{
 		obj(map[string]any{"siteId": siteID, "name": str("Site name"),
 			"blockedFields": strs("Extra property names to strip"), "visitorId": boo("Random visitor id in localStorage (needed for distinct visitors)"),
 			"collectIp": boo("Add the client IP to event meta (personal data; off by default)"),
+			"geo":       enum("Location from the client IP (needs AGG_GEOIP_URL): country (default), city or off", "off", "country", "city"),
 			"pageViews": boo("Send page_view automatically"), "requireConsent": boo("Wait for agg.consent({analytics:true})"),
 			"allowedOrigins": strs("Origins allowed to send events, e.g. https://shop.example.com; empty = any")}, "siteId"), updateTracking},
 	{"list_presets", "List presets: what each creates and what the site has to send.", obj(map[string]any{}),
