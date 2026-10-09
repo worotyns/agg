@@ -24,6 +24,7 @@ type SiteConfig struct {
 	BlockedFields  []string `json:"blockedFields"`
 	VisitorID      bool     `json:"visitorId"`
 	PageViews      bool     `json:"pageViews"`
+	PageTime       bool     `json:"pageTime"`
 	RequireConsent bool     `json:"requireConsent"`
 	CollectIP      bool     `json:"collectIp"`
 	Geo            string   `json:"geo"` // location from the client IP: GeoOff, GeoCountry or GeoCity (needs AGG_GEOIP_URL)
@@ -36,7 +37,7 @@ const (
 )
 
 func DefaultSiteConfig() SiteConfig {
-	return SiteConfig{AllowedOrigins: []string{}, BlockedFields: []string{}, VisitorID: true, PageViews: true, Geo: GeoCountry}
+	return SiteConfig{AllowedOrigins: []string{}, BlockedFields: []string{}, VisitorID: true, PageViews: true, PageTime: true, Geo: GeoCountry}
 }
 
 // Normalize fills nil slices so the JSON never contains null lists, and defaults an unknown geo mode to country.
@@ -68,9 +69,38 @@ const (
 	OpCountDistinct Op = "count_distinct"
 	OpLastValue     Op = "last_value"
 	OpLastTimestamp Op = "last_timestamp"
+	OpAvg           Op = "avg"
+	OpMin           Op = "min"
+	OpMax           Op = "max"
+	OpP50           Op = "p50"
+	OpP95           Op = "p95"
+	OpP99           Op = "p99"
 )
 
-func (o Op) Windowed() bool { return o == OpCount || o == OpSum || o == OpCountDistinct }
+// Quantile returns the quantile of a percentile operation (p95 → 0.95).
+func (o Op) Quantile() (float64, bool) {
+	switch o {
+	case OpP50:
+		return 0.50, true
+	case OpP95:
+		return 0.95, true
+	case OpP99:
+		return 0.99, true
+	}
+	return 0, false
+}
+
+// Stat reports whether the operation summarizes a numeric Value expression per window (avg, min, max, percentiles).
+func (o Op) Stat() bool {
+	_, q := o.Quantile()
+	return q || o == OpAvg || o == OpMin || o == OpMax
+}
+
+// Windowed reports whether the operation has window variables (<name>_24h, <name>_prev_24h, …).
+func (o Op) Windowed() bool { return o == OpCount || o == OpSum || o == OpCountDistinct || o.Stat() }
+
+// HasTotal reports whether the operation also has an all-time variable (<name>_total).
+func (o Op) HasTotal() bool { return o == OpCount || o == OpSum || o == OpAvg }
 
 const (
 	VisibilityPrivate        = "private"

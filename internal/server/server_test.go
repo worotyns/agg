@@ -201,7 +201,7 @@ func TestIngestToPublicValues(t *testing.T) {
 func TestSDKConfigAndScript(t *testing.T) {
 	a := newApp(t)
 	res, out := a.do("GET", "/v1/config?site="+a.Site.PublicKey, nil)
-	if res.StatusCode != 200 || !strings.Contains(string(out), `"pageViews":true`) || strings.Contains(string(out), "layers") {
+	if res.StatusCode != 200 || !strings.Contains(string(out), `"pageViews":true`) || !strings.Contains(string(out), `"pageTime":true`) || strings.Contains(string(out), "layers") {
 		t.Errorf("config: %d %s", res.StatusCode, out)
 	}
 	if res, _ := a.do("GET", "/v1/config?site=pk_missing", nil); res.StatusCode != 404 {
@@ -432,5 +432,60 @@ func TestClientIPHeaderBeatsForwardedFor(t *testing.T) {
 	}
 	if code := login("wrong", "10.0.0.99"); code != 429 {
 		t.Fatalf("new X-Forwarded-For escaped the limit: %d", code)
+	}
+}
+
+func TestPageTimeAggregatesEndToEnd(t *testing.T) {
+	a := newApp(t)
+	base := "/api/sites/" + itoa(int(a.Site.ID))
+	by := map[string]string{"dimension": "page", "expr": "meta.path"}
+	for _, op := range []string{"avg", "max", "p95"} {
+		m := a.admin("POST", base+"/aggregates", map[string]any{"name": "time_" + op, "events": []string{"page_leave"}, "op": op,
+			"value": "props.ms", "visibility": "public", "groupBy": by})
+		if m["error"] != nil {
+			t.Fatalf("create %s: %v", op, m)
+		}
+	}
+	var evs []string
+	for _, ms := range []int{1000, 2000, 3000, 4000, 90000} {
+		evs = append(evs, `{"name":"page_leave","props":{"ms":`+itoa(ms)+`},"meta":{"path":"/docs"}}`)
+	}
+	res, out := a.do("POST", "/e", `{"site":"`+a.Site.PublicKey+`","events":[`+strings.Join(evs, ",")+`]}`, "Content-Type", "text/plain")
+	if res.StatusCode != 202 {
+		t.Fatalf("ingest: %d %s", res.StatusCode, out)
+	}
+	a.flush()
+
+	res, out = a.do("GET", "/v1/values?site="+a.Site.PublicKey+"&v=time_avg_24h,time_max_24h,time_p95_24h,time_max_total", nil)
+	var v struct {
+		Values  map[string]float64 `json:"values"`
+		Unknown []string           `json:"unknown"`
+	}
+	json.Unmarshal(out, &v)
+	if v.Values["time_avg_24h"] != 20000 || v.Values["time_max_24h"] != 90000 {
+		t.Errorf("values: %s", out)
+	}
+	if p := v.Values["time_p95_24h"]; p < 87000 || p > 93000 {
+		t.Errorf("p95 = %v, want ≈90000", p)
+	}
+	if len(v.Unknown) != 1 || v.Unknown[0] != "time_max_total" {
+		t.Errorf("max has no all-time variable, unknown = %v", v.Unknown)
+	}
+	_, out = a.do("GET", "/v1/top?site="+a.Site.PublicKey+"&aggregate=time_avg&window=24h", nil)
+	if !strings.Contains(string(out), `"key":"/docs","value":20000`) {
+		t.Errorf("top by average: %s", out)
+	}
+	_, out = a.do("GET", base+"/aggregates", nil, "Authorization", "Bearer "+adminToken)
+	if !strings.Contains(string(out), "time_p95_24h") || strings.Contains(string(out), "time_p95_total") {
+		t.Errorf("aggregate list must offer the p95 window variables and no total: %s", out)
+	}
+
+	m := a.admin("POST", base+"/exports", map[string]any{"name": "prom", "format": "prometheus",
+		"scope": map[string]any{"aggregates": []string{"time_p95", "time_avg"}, "windows": []string{"24h"}}})
+	exp := m["export"].(map[string]any)["id"].(string)
+	_, out = a.do("GET", "/export/"+exp+"/metrics", nil, "Authorization", "Bearer "+m["token"].(string))
+	if !strings.Contains(string(out), `agg_value{site="`+a.Site.Slug+`",aggregate="time_avg",window="24h"} 20000`) ||
+		!strings.Contains(string(out), `aggregate="time_p95",window="24h"}`) {
+		t.Errorf("prometheus export:\n%s", out)
 	}
 }

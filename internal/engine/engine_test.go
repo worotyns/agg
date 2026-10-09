@@ -300,7 +300,7 @@ func TestValidation(t *testing.T) {
 		want string
 	}{
 		{model.AggregateDef{Op: model.OpCount}, "at least one event"},
-		{model.AggregateDef{Events: []string{"x"}, Op: "avg"}, "unknown operation"},
+		{model.AggregateDef{Events: []string{"x"}, Op: "median"}, "unknown operation"},
 		{model.AggregateDef{Events: []string{"x"}, Op: model.OpSum}, "Value"},
 		{model.AggregateDef{Events: []string{"x"}, Op: model.OpCount, Where: "item.price > 1"}, "only available when Explode"},
 		{model.AggregateDef{Events: []string{"x"}, Op: model.OpCount, Explode: "props.items", Where: "items.price > 1"}, "item.<field>"},

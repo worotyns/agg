@@ -1,6 +1,6 @@
 import {
   html, useState, useEffect, useRef, api, useLoad, go, Alert, ConfirmTyped, Modal, Seg, TagInput,
-  num, compact, describe, lastValue, ago, dateTime, slugify, OPS,
+  num, compact, describe, lastValue, ago, dateTime, slugify, OPS, STAT_OPS, WINDOWED_OPS,
 } from './lib.js';
 import { BarChart, TopList } from './charts.js';
 
@@ -113,7 +113,7 @@ export function AggregateEditor({ site, meta, base, id, query }) {
   const set = (k, v) => setDef({ ...def, [k]: v });
   const dims = [...new Set((all.data || []).flatMap((a) => [a.groupBy && a.groupBy.dimension, a.rankBy && a.rankBy.dimension]).filter(Boolean))];
   const eventSuggestions = [...new Set([...(names.data || []).map((n) => n.name), 'page_view'])];
-  const needsValue = def.op === 'sum' || def.op === 'last_value';
+  const needsValue = def.op === 'sum' || def.op === 'last_value' || STAT_OPS.includes(def.op);
   const canRank = def.groupBy && (def.op === 'count' || def.op === 'sum');
 
   const save = async () => {
@@ -186,7 +186,13 @@ export function AggregateEditor({ site, meta, base, id, query }) {
               count_distinct: 'Exact number of distinct values; by default distinct visitors (needs the visitor id).',
               last_value: 'The most recent value, e.g. the last search term.',
               last_timestamp: 'When the last matching event happened.',
-            }[def.op]} ${['count', 'sum', 'count_distinct'].includes(def.op) ? 'Windows: 5m, 1h, 6h, 24h, 7d, 30d and the previous period of each.' : ''}</div>
+              avg: 'Average of a numeric value, e.g. props.ms for time on page (milliseconds).',
+              min: 'Smallest value in the window.',
+              max: 'Largest value in the window.',
+              p50: 'Median of a numeric value (estimated, within about 2.5%). Negative values count as 0.',
+              p95: '95% of values are at or below this (estimated, within about 2.5%). Negative values count as 0.',
+              p99: '99% of values are at or below this (estimated, within about 2.5%). Negative values count as 0.',
+            }[def.op]} ${WINDOWED_OPS.includes(def.op) ? 'Windows: 5m, 1h, 6h, 24h, 7d, 30d and the previous period of each.' : ''}</div>
           </fieldset>
 
           <fieldset><legend>Group by <span class="faint">(optional)</span></legend>
@@ -285,6 +291,7 @@ function contribText(def, c) {
   if (def.rankBy) parts.push(`${def.rankBy.dimension}=${c.rank || '∅'}${c.rankLabel ? ` (${c.rankLabel})` : ''}`);
   if (def.op === 'count') parts.push('+1');
   if (def.op === 'sum') parts.push(`+${num(c.value || 0)}`);
+  if (STAT_OPS.includes(def.op)) parts.push(`value ${num(c.value || 0)}`);
   if (def.op === 'count_distinct') parts.push(`distinct ${c.distinct}`);
   if (def.op === 'last_value') parts.push(`= ${c.raw}`);
   if (def.op === 'last_timestamp') parts.push('time = now');
@@ -321,7 +328,7 @@ export function AggregateDetail({ site, meta, base, id }) {
   const a = agg.data;
   const dimQS = new URLSearchParams(Object.entries(dims).filter(([, v]) => v)).toString();
   const values = useLoad(() => api('GET', `/sites/${site.id}/aggregates/${id}/values?${dimQS}`), [id, dimQS], 15000);
-  const windowed = a && ['count', 'sum', 'count_distinct'].includes(a.op);
+  const windowed = a && WINDOWED_OPS.includes(a.op);
   const series = useLoad(() => windowed ? api('GET', `/sites/${site.id}/aggregates/${id}/series?range=${range}&${dimQS}`) : Promise.resolve(null), [id, range, dimQS, windowed], 30000);
   const top = useLoad(() => a && a.groupBy
     ? api('GET', `/sites/${site.id}/aggregates/${id}/top?window=${topWin}&limit=20${topBy ? '&by=' + topBy : ''}&${dimQS}`)

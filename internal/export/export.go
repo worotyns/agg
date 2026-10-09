@@ -128,7 +128,7 @@ func Collect(ctx context.Context, q *query.Querier, site model.Site, ex model.Ex
 			dimL = DimensionLabel(a.GroupBy.Dimension)
 		}
 		switch a.Op {
-		case model.OpCount, model.OpSum, model.OpCountDistinct:
+		case model.OpCount, model.OpSum, model.OpCountDistinct, model.OpAvg, model.OpMin, model.OpMax, model.OpP50, model.OpP95, model.OpP99:
 			for _, w := range windows {
 				winL := Label{"window", w.Name}
 				v, err := q.WindowValue(ctx, a, w, false, "", "")

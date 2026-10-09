@@ -72,11 +72,12 @@ func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
 type sdkConfig struct {
 	VisitorID      bool `json:"visitorId"`
 	PageViews      bool `json:"pageViews"`
+	PageTime       bool `json:"pageTime"`
 	RequireConsent bool `json:"requireConsent"`
 }
 
 func sdkConfigFor(c model.SiteConfig) sdkConfig {
-	return sdkConfig{c.VisitorID, c.PageViews, c.RequireConsent}
+	return sdkConfig{c.VisitorID, c.PageViews, c.PageTime, c.RequireConsent}
 }
 
 func (s *Server) handleSDKConfig(w http.ResponseWriter, r *http.Request) {

@@ -24,7 +24,7 @@ const API = [
     events; <code>false</code> drops the queue and sends nothing.`],
   ['agg.flush()', html`Sends queued events now instead of after the 1 s debounce. Rarely needed: the SDK also flushes
     with <code>sendBeacon</code> when the page is hidden.`],
-  ['agg.init({ endpoint, site, config? })', html`Manual start when you load the script without <code>data-site</code> (e.g. from a bundle). <code>config</code> skips the settings request: <code>{ pageViews, visitorId, requireConsent }</code>.`],
+  ['agg.init({ endpoint, site, config? })', html`Manual start when you load the script without <code>data-site</code> (e.g. from a bundle). <code>config</code> skips the settings request: <code>{ pageViews, pageTime, visitorId, requireConsent }</code>.`],
   ['agg.version', html`SDK protocol version.`],
 ];
 

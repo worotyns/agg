@@ -4,7 +4,7 @@
 <script async src="https://agg.example.com/agg.js" data-site="pk_…"></script>
 ```
 
-A 3 KB script with no dependencies. It sends a `page_view` on every page (and SPA navigation) and the events you
+A 3 KB script with no dependencies. It sends a `page_view` on every page (and SPA navigation), a `page_leave` with the visible time on the page and the events you
 track. That is all it does: what to track and which properties to send is up to you.
 
 ## Track events
@@ -57,6 +57,18 @@ Use them like props: group page views by `meta.path`, sign-ups by `meta.device`,
 On by default (Settings → Page views). `page_view` is sent on load and on `history.pushState` / `popstate`
 navigation when the path changes. Turn it off to send page views yourself with `agg.page()`, or not at all.
 
+## Page time
+
+On by default (Settings → Page time, `pageTime` in the config). The SDK counts the milliseconds a page is **visible**
+(background tabs do not count) and sends them as a `page_leave` event with `props.ms` and `meta.path` when the tab is
+hidden or the visitor navigates to another path (SPA). If the visitor comes back to the tab, the next visible stretch is
+sent as another `page_leave`, so one event is one stretch of attention, not necessarily one whole visit. The event is
+handed to `sendBeacon` together with the rest of the queue.
+
+Aggregate it with the `avg`, `min`, `max`, `p50`, `p95` and `p99` operations, for example `p95` of `props.ms` on
+`page_leave`, grouped by `meta.path` for the slowest-read pages ([aggregates.md](aggregates.md#operations)). Turn it off
+to stop sending `page_leave`, or send your own timings with `agg.track()`.
+
 ## Visitor id, privacy, consent
 
 - **Visitor id** (on by default): a random id in `localStorage` (`agg_vid`), needed for distinct visitor counts.
@@ -88,7 +100,7 @@ Instead of `data-site`:
 ```js
 agg.init({ endpoint: 'https://agg.example.com', site: 'pk_…' });
 // skip the /v1/config request:
-agg.init({ endpoint: '…', site: '…', config: { visitorId: true, pageViews: false, requireConsent: false } });
+agg.init({ endpoint: '…', site: '…', config: { visitorId: true, pageViews: false, pageTime: false, requireConsent: false } });
 ```
 
 API: `agg.track(name, props?, id?)`, `agg.page()`, `agg.consent({ analytics })`, `agg.flush()`.

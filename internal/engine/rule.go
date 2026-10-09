@@ -93,6 +93,7 @@ func compile(a model.Aggregate, def *model.AggregateDef) (*Rule, []string, error
 	}
 	switch def.Op {
 	case model.OpCount, model.OpSum, model.OpCountDistinct, model.OpLastValue, model.OpLastTimestamp:
+	case model.OpAvg, model.OpMin, model.OpMax, model.OpP50, model.OpP95, model.OpP99:
 	default:
 		return nil, nil, fmt.Errorf("unknown operation %q", def.Op)
 	}
@@ -152,12 +153,12 @@ func compile(a model.Aggregate, def *model.AggregateDef) (*Rule, []string, error
 			return nil, nil, err
 		}
 	}
-	switch def.Op {
-	case model.OpSum, model.OpLastValue:
+	switch {
+	case def.Op == model.OpSum || def.Op == model.OpLastValue || def.Op.Stat():
 		if strings.TrimSpace(def.Value) == "" {
 			return nil, nil, fmt.Errorf("Value: an expression is required for %s", def.Op)
 		}
-	case model.OpCount, model.OpLastTimestamp:
+	case def.Op == model.OpCount || def.Op == model.OpLastTimestamp:
 		def.Value = ""
 	}
 	if r.value, err = compileExpr("Value", def.Value, withItem); err != nil {
@@ -255,8 +256,8 @@ func (r *Rule) contribution(env map[string]any) (Contribution, bool, error) {
 			c.MemberLabel = labelOf(r.rankLabel, env)
 		}
 	}
-	switch r.Agg.Op {
-	case model.OpSum:
+	switch op := r.Agg.Op; {
+	case op == model.OpSum || op.Stat():
 		v, err := run(r.value, env)
 		if err != nil {
 			return c, false, fmt.Errorf("value: %w", err)
@@ -266,7 +267,7 @@ func (r *Rule) contribution(env map[string]any) (Contribution, bool, error) {
 			return c, false, nil
 		}
 		c.Value = f
-	case model.OpCountDistinct:
+	case op == model.OpCountDistinct:
 		var v any = env["visitor"]
 		if r.value != nil {
 			var err error
@@ -281,7 +282,7 @@ func (r *Rule) contribution(env map[string]any) (Contribution, bool, error) {
 		h := fnv.New64a()
 		h.Write([]byte(c.Distinct))
 		c.hash = int64(h.Sum64())
-	case model.OpLastValue:
+	case op == model.OpLastValue:
 		v, err := run(r.value, env)
 		if err != nil {
 			return c, false, fmt.Errorf("value: %w", err)

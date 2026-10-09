@@ -120,6 +120,13 @@ var migrations = []string{
 		id INTEGER PRIMARY KEY, name TEXT NOT NULL, prefix TEXT NOT NULL, token_hash TEXT NOT NULL UNIQUE,
 		created_at INTEGER NOT NULL, last_used_at INTEGER NOT NULL DEFAULT 0);`,
 	`ALTER TABLE events_raw ADD COLUMN meta TEXT NOT NULL DEFAULT '{}';`,
+	// min / max aggregates keep the extremes per bucket; percentile aggregates keep a histogram per bucket.
+	`ALTER TABLE buckets ADD COLUMN min REAL NOT NULL DEFAULT 0;
+	ALTER TABLE buckets ADD COLUMN max REAL NOT NULL DEFAULT 0;
+	CREATE TABLE hist (
+		agg_id INTEGER NOT NULL, gran TEXT NOT NULL, part TEXT NOT NULL, member TEXT NOT NULL, bucket INTEGER NOT NULL,
+		idx INTEGER NOT NULL, cnt INTEGER NOT NULL, PRIMARY KEY (agg_id, gran, part, member, bucket, idx)) WITHOUT ROWID;
+	CREATE INDEX hist_time ON hist (agg_id, gran, bucket);`,
 }
 
 func (s *SQLite) migrate() error {
@@ -337,7 +344,7 @@ func (s *SQLite) UpdateAggregate(ctx context.Context, a *model.Aggregate) error 
 }
 
 func clearData(ctx context.Context, tx *sql.Tx, cond string, arg any) error {
-	for _, t := range []string{"buckets", "distinct_members", "last_values", "totals", "labels", "matched"} {
+	for _, t := range []string{"buckets", "hist", "distinct_members", "last_values", "totals", "labels", "matched"} {
 		if _, err := tx.ExecContext(ctx, `DELETE FROM `+t+` WHERE agg_id `+cond, arg); err != nil {
 			return err
 		}
@@ -539,10 +546,23 @@ func (s *SQLite) ApplyBatch(ctx context.Context, b *Batch) error {
 		defer st.Close()
 		return each(st)
 	}
-	err = exec(`INSERT INTO buckets (agg_id, gran, part, member, bucket, cnt, sum) VALUES (?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT DO UPDATE SET cnt = cnt + excluded.cnt, sum = sum + excluded.sum`, func(st *sql.Stmt) error {
+	err = exec(`INSERT INTO buckets (agg_id, gran, part, member, bucket, cnt, sum, min, max) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT DO UPDATE SET cnt = cnt + excluded.cnt, sum = sum + excluded.sum,
+			min = MIN(min, excluded.min), max = MAX(max, excluded.max)`, func(st *sql.Stmt) error {
 		for k, c := range b.Buckets {
-			if _, err := st.ExecContext(ctx, k.Agg, string(k.Gran), k.Part, k.Member, k.Bucket, c.Count, c.Sum); err != nil {
+			if _, err := st.ExecContext(ctx, k.Agg, string(k.Gran), k.Part, k.Member, k.Bucket, c.Count, c.Sum, c.Min, c.Max); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	err = exec(`INSERT INTO hist (agg_id, gran, part, member, bucket, idx, cnt) VALUES (?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT DO UPDATE SET cnt = cnt + excluded.cnt`, func(st *sql.Stmt) error {
+		for k, n := range b.Hist {
+			if _, err := st.ExecContext(ctx, k.Agg, string(k.Gran), k.Part, k.Member, k.Bucket, k.Idx, n); err != nil {
 				return err
 			}
 		}
@@ -646,9 +666,9 @@ func (s *SQLite) ApplyBatch(ctx context.Context, b *Batch) error {
 
 func (s *SQLite) SumBuckets(ctx context.Context, agg int64, g model.Gran, from, to int64, part, member string) (Counter, error) {
 	var c Counter
-	err := s.r.QueryRowContext(ctx, `SELECT COALESCE(SUM(cnt), 0), COALESCE(SUM(sum), 0) FROM buckets
-		WHERE agg_id = ? AND gran = ? AND part = ? AND member = ? AND bucket BETWEEN ? AND ?`,
-		agg, string(g), part, member, from, to).Scan(&c.Count, &c.Sum)
+	err := s.r.QueryRowContext(ctx, `SELECT COALESCE(SUM(cnt), 0), COALESCE(SUM(sum), 0), COALESCE(MIN(min), 0), COALESCE(MAX(max), 0)
+		FROM buckets WHERE agg_id = ? AND gran = ? AND part = ? AND member = ? AND bucket BETWEEN ? AND ?`,
+		agg, string(g), part, member, from, to).Scan(&c.Count, &c.Sum, &c.Min, &c.Max)
 	return c, err
 }
 
@@ -687,7 +707,7 @@ func (s *SQLite) queryTop(ctx context.Context, q string, args ...any) ([]TopRow,
 	out := []TopRow{}
 	for rows.Next() {
 		var t TopRow
-		if err := rows.Scan(&t.Key, &t.Count, &t.Sum, &t.TS); err != nil {
+		if err := rows.Scan(&t.Key, &t.Count, &t.Sum, &t.Min, &t.Max, &t.TS); err != nil {
 			return nil, err
 		}
 		out = append(out, t)
@@ -695,23 +715,94 @@ func (s *SQLite) queryTop(ctx context.Context, q string, args ...any) ([]TopRow,
 	return out, rows.Err()
 }
 
-func (s *SQLite) TopBuckets(ctx context.Context, agg int64, g model.Gran, from, to int64, level Level, part string, bySum bool, limit int) ([]TopRow, error) {
+func (s *SQLite) TopBuckets(ctx context.Context, agg int64, g model.Gran, from, to int64, level Level, part string, by TopBy, limit int) ([]TopRow, error) {
 	order := "2 DESC"
-	if bySum {
+	switch by {
+	case BySum:
 		order = "3 DESC"
+	case ByAvg:
+		order = "SUM(sum) * 1.0 / SUM(cnt) DESC"
+	case ByMin:
+		order = "4 ASC"
+	case ByMax:
+		order = "5 DESC"
 	}
 	if level == LevelPart {
-		return s.queryTop(ctx, `SELECT part, SUM(cnt), SUM(sum), 0 FROM buckets
+		return s.queryTop(ctx, `SELECT part, SUM(cnt), SUM(sum), MIN(min), MAX(max), 0 FROM buckets
 			WHERE agg_id = ? AND gran = ? AND bucket BETWEEN ? AND ? AND part <> '' AND member = ''
 			GROUP BY part ORDER BY `+order+`, 1 LIMIT ?`, agg, string(g), from, to, limit)
 	}
-	return s.queryTop(ctx, `SELECT member, SUM(cnt), SUM(sum), 0 FROM buckets
+	return s.queryTop(ctx, `SELECT member, SUM(cnt), SUM(sum), MIN(min), MAX(max), 0 FROM buckets
 		WHERE agg_id = ? AND gran = ? AND bucket BETWEEN ? AND ? AND part = ? AND member <> ''
 		GROUP BY member ORDER BY `+order+`, 1 LIMIT ?`, agg, string(g), from, to, part, limit)
 }
 
+func (s *SQLite) Hist(ctx context.Context, agg int64, g model.Gran, from, to int64, part, member string) ([]model.HistBin, error) {
+	rows, err := s.r.QueryContext(ctx, `SELECT idx, SUM(cnt) FROM hist
+		WHERE agg_id = ? AND gran = ? AND part = ? AND member = ? AND bucket BETWEEN ? AND ? GROUP BY idx ORDER BY idx`,
+		agg, string(g), part, member, from, to)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []model.HistBin{}
+	for rows.Next() {
+		var b model.HistBin
+		if err := rows.Scan(&b.Idx, &b.Count); err != nil {
+			return nil, err
+		}
+		out = append(out, b)
+	}
+	return out, rows.Err()
+}
+
+func (s *SQLite) TopHist(ctx context.Context, agg int64, g model.Gran, from, to int64, level Level, part string) (map[string][]model.HistBin, error) {
+	q := `SELECT part, idx, SUM(cnt) FROM hist WHERE agg_id = ? AND gran = ? AND bucket BETWEEN ? AND ? AND part <> '' AND member = ''
+		GROUP BY part, idx ORDER BY part, idx`
+	args := []any{agg, string(g), from, to}
+	if level == LevelMember {
+		q = `SELECT member, idx, SUM(cnt) FROM hist WHERE agg_id = ? AND gran = ? AND bucket BETWEEN ? AND ? AND part = ? AND member <> ''
+			GROUP BY member, idx ORDER BY member, idx`
+		args = append(args, part)
+	}
+	rows, err := s.r.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string][]model.HistBin{}
+	for rows.Next() {
+		var key string
+		var b model.HistBin
+		if err := rows.Scan(&key, &b.Idx, &b.Count); err != nil {
+			return nil, err
+		}
+		out[key] = append(out[key], b)
+	}
+	return out, rows.Err()
+}
+
+func (s *SQLite) SeriesHist(ctx context.Context, agg int64, g model.Gran, from, to int64, part, member string) ([]HistRow, error) {
+	rows, err := s.r.QueryContext(ctx, `SELECT bucket, idx, cnt FROM hist
+		WHERE agg_id = ? AND gran = ? AND part = ? AND member = ? AND bucket BETWEEN ? AND ? ORDER BY bucket, idx`,
+		agg, string(g), part, member, from, to)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []HistRow{}
+	for rows.Next() {
+		var h HistRow
+		if err := rows.Scan(&h.Bucket, &h.Idx, &h.Count); err != nil {
+			return nil, err
+		}
+		out = append(out, h)
+	}
+	return out, rows.Err()
+}
+
 func (s *SQLite) TopDistinct(ctx context.Context, agg int64, g model.Gran, from, to int64, limit int) ([]TopRow, error) {
-	return s.queryTop(ctx, `SELECT part, COUNT(DISTINCT hash), 0, 0 FROM distinct_members
+	return s.queryTop(ctx, `SELECT part, COUNT(DISTINCT hash), 0, 0, 0, 0 FROM distinct_members
 		WHERE agg_id = ? AND gran = ? AND bucket BETWEEN ? AND ? AND part <> ''
 		GROUP BY part ORDER BY 2 DESC, 1 LIMIT ?`, agg, string(g), from, to, limit)
 }
@@ -736,12 +827,12 @@ func (s *SQLite) TopLast(ctx context.Context, agg int64, limit int) ([]TopRow, e
 }
 
 func (s *SQLite) TopTotals(ctx context.Context, agg int64, limit int) ([]TopRow, error) {
-	return s.queryTop(ctx, `SELECT part, cnt, sum, 0 FROM totals WHERE agg_id = ? AND part <> '' AND member = ''
+	return s.queryTop(ctx, `SELECT part, cnt, sum, 0, 0, 0 FROM totals WHERE agg_id = ? AND part <> '' AND member = ''
 		ORDER BY cnt DESC, part LIMIT ?`, agg, limit)
 }
 
 func (s *SQLite) SeriesBuckets(ctx context.Context, agg int64, g model.Gran, from, to int64, part, member string) ([]Point, error) {
-	rows, err := s.r.QueryContext(ctx, `SELECT bucket, cnt, sum FROM buckets
+	rows, err := s.r.QueryContext(ctx, `SELECT bucket, cnt, sum, min, max FROM buckets
 		WHERE agg_id = ? AND gran = ? AND part = ? AND member = ? AND bucket BETWEEN ? AND ? ORDER BY bucket`,
 		agg, string(g), part, member, from, to)
 	if err != nil {
@@ -751,7 +842,7 @@ func (s *SQLite) SeriesBuckets(ctx context.Context, agg int64, g model.Gran, fro
 	out := []Point{}
 	for rows.Next() {
 		var p Point
-		if err := rows.Scan(&p.Bucket, &p.Count, &p.Sum); err != nil {
+		if err := rows.Scan(&p.Bucket, &p.Count, &p.Sum, &p.Min, &p.Max); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
@@ -962,6 +1053,9 @@ func (s *SQLite) Cleanup(ctx context.Context, nowS int64, rawRetentionDays int) 
 	for g, keep := range model.Retention {
 		cut := nowS - int64(keep.Seconds())
 		if _, err := s.w.ExecContext(ctx, `DELETE FROM buckets WHERE gran = ? AND bucket < ?`, string(g), cut); err != nil {
+			return err
+		}
+		if _, err := s.w.ExecContext(ctx, `DELETE FROM hist WHERE gran = ? AND bucket < ?`, string(g), cut); err != nil {
 			return err
 		}
 		if _, err := s.w.ExecContext(ctx, `DELETE FROM distinct_members WHERE gran = ? AND bucket < ?`, string(g), cut); err != nil {

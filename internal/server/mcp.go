@@ -192,14 +192,14 @@ func (s *Server) mcpDispatch(r *http.Request, q rpcRequest) (rpcResponse, bool) 
 	return res, true
 }
 
-const mcpInstructions = `agg computes real-time aggregates (count, sum, distinct count, last value/time; grouped and ranked; windows 5m..30d + previous period) from website and product events, with alerts, a JSON values API and Prometheus exports.
+const mcpInstructions = `agg computes real-time aggregates (count, sum, distinct count, last value/time, avg/min/max/p50/p95/p99 of a numeric value such as page time; grouped and ranked; windows 5m..30d + previous period) from website and product events, with alerts, a JSON values API and Prometheus exports.
 
 Typical flow:
 1. list_sites, or create_site with a preset (website, shop, saas, publisher). list_presets shows what each creates and what the site must send.
 2. get_install_snippet: the <script> tag for the site, plus agg.track() examples for custom events.
 3. list_event_names / recent_events: see which events and properties actually arrive before defining aggregates.
 4. test_aggregate (dry run on real recent events) before create_aggregate. Expressions use expr syntax: props.<field> (what the developer sent), meta.<field> (path, referrer, language, browser, os, device, bot, ip), item.<field> when explode is set, visitor, event.
-5. Variables are <aggregate>_<window> (5m 1h 6h 24h 7d 30d), <aggregate>_prev_<window>, <aggregate>_total, or the name alone for last_value/last_timestamp. Use them in formulas and alert conditions; check_alert evaluates a condition now.
+5. Variables are <aggregate>_<window> (5m 1h 6h 24h 7d 30d), <aggregate>_prev_<window>, <aggregate>_total (count, sum, avg only), or the name alone for last_value/last_timestamp. Use them in formulas and alert conditions; check_alert evaluates a condition now.
 6. get_values, get_top, get_series, get_insights read the numbers.
 Ask before deleting anything. Read the agg://docs/* resources for details.`
 
@@ -310,8 +310,8 @@ var aggregateProps = map[string]any{
 	"events":     strs("Event names it listens to, e.g. [\"purchase\"]"),
 	"where":      str("Optional filter expression, e.g. props.value > 100"),
 	"explode":    str("Optional array to iterate, e.g. props.items; each element is `item`"),
-	"op":         enum("Operation", "count", "sum", "count_distinct", "last_value", "last_timestamp"),
-	"value":      str("Value expression: required for sum and last_value; for count_distinct defaults to the visitor id"),
+	"op":         enum("Operation", "count", "sum", "count_distinct", "last_value", "last_timestamp", "avg", "min", "max", "p50", "p95", "p99"),
+	"value":      str("Value expression: required for sum, avg, min, max, p50, p95, p99 and last_value (e.g. props.ms for page time); for count_distinct defaults to the visitor id"),
 	"groupBy":    groupingSchema,
 	"rankBy":     groupingSchema,
 	"visibility": enum("Values API visibility", "private", "public", "public_bucketed"),
@@ -433,7 +433,8 @@ var mcpTools = []mcpTool{
 			"blockedFields": strs("Extra property names to strip"), "visitorId": boo("Random visitor id in localStorage (needed for distinct visitors)"),
 			"collectIp": boo("Add the client IP to event meta (personal data; off by default)"),
 			"geo":       enum("Location from the client IP (needs AGG_GEOIP_URL): country (default), city or off", "off", "country", "city"),
-			"pageViews": boo("Send page_view automatically"), "requireConsent": boo("Wait for agg.consent({analytics:true})"),
+			"pageViews": boo("Send page_view automatically"), "pageTime": boo("Send page_leave with the visible time on the page (props.ms) when the page is hidden or left"),
+			"requireConsent": boo("Wait for agg.consent({analytics:true})"),
 			"allowedOrigins": strs("Origins allowed to send events, e.g. https://shop.example.com; empty = any")}, "siteId"), updateTracking},
 	{"list_presets", "List presets: what each creates and what the site has to send.", obj(map[string]any{}),
 		call("GET", func(a map[string]any) string { return "/api/presets" })},

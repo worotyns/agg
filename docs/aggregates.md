@@ -7,7 +7,7 @@ An aggregate turns a stream of events into a number that updates as events arriv
 | **Events** | `purchase` | event names it listens to (normalized: `Add To Cart` → `add_to_cart`) |
 | **Where** | `props.value > 100` | optional filter expression |
 | **Explode** | `props.items` | optional: treat each array element as its own event, available as `item` |
-| **Operation** | `sum` of `item.price * item.quantity` | `count`, `sum`, `count_distinct`, `last_value`, `last_timestamp` |
+| **Operation** | `sum` of `item.price * item.quantity` | `count`, `sum`, `avg`, `min`, `max`, `p50`, `p95`, `p99`, `count_distinct`, `last_value`, `last_timestamp` |
 | **Group by** | dimension `product` = `item.id`, label `item.name` | optional: one value per product |
 | **Rank within group** | dimension `product` inside group `category` | optional (count/sum): top-N inside each group |
 | **Visibility** | `private`, `public`, `public_bucketed` | whether `/v1/values` serves it without a token |
@@ -36,9 +36,18 @@ at 200 bytes.
 |---|---|---|
 | `count` | number of matching events (or exploded items) | yes, plus an all-time total |
 | `sum` | sum of the Value expression | yes, plus an all-time total |
+| `avg` | average of the Value expression | yes, plus an all-time average |
+| `min`, `max` | smallest / largest value of the Value expression | yes |
+| `p50`, `p95`, `p99` | median / 95th / 99th percentile of the Value expression | yes |
 | `count_distinct` | exact number of distinct values of the Value expression (default: the visitor id) | yes |
 | `last_value` | most recent value of the Value expression | no |
 | `last_timestamp` | unix time of the most recent matching event | no |
+
+`avg`, `min`, `max` and the percentiles summarize a number per window, e.g. `props.ms` of `page_leave` for time on
+page (see [sdk.md](sdk.md#page-time)). Grouped, they give one value per group (average time per `meta.path`) and a top list
+ordered by that value. A window without events has the value `0`. Percentiles are estimated from a histogram with
+a relative error of about 2.5% and treat negative values as `0`; `avg`, `min` and `max` are exact. Use Where to leave
+out noise, e.g. `props.ms >= 1000`. Min, max and percentiles have no `_total` variable.
 
 ## Windows and precision
 
@@ -59,7 +68,7 @@ Every aggregate provides variables used by formulas, the values API and exports:
 
 - `purchases_5m` … `purchases_30d`: window values;
 - `purchases_prev_5m` … `purchases_prev_30d`: previous windows;
-- `purchases_total`: all-time value since creation or the last reset (count and sum);
+- `purchases_total`: all-time value since creation or the last reset (count, sum and avg);
 - `last_purchase`: for `last_value` / `last_timestamp` aggregates, the name alone.
 
 Names must not end with a window suffix (`_24h`, `_total`…).

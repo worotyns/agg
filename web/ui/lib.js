@@ -111,11 +111,21 @@ export const OPS = {
   count_distinct: 'Count distinct',
   last_value: 'Last value',
   last_timestamp: 'Last time',
+  avg: 'Average',
+  min: 'Minimum',
+  max: 'Maximum',
+  p50: 'Median (p50)',
+  p95: 'Percentile p95',
+  p99: 'Percentile p99',
 };
+
+// Operations that summarize a numeric Value per window.
+export const STAT_OPS = ['avg', 'min', 'max', 'p50', 'p95', 'p99'];
+export const WINDOWED_OPS = ['count', 'sum', 'count_distinct', ...STAT_OPS];
 
 export function describe(a) {
   let s = OPS[a.op] || a.op;
-  if (a.op === 'sum' || a.op === 'last_value') s += ` of ${a.value}`;
+  if (a.op === 'sum' || a.op === 'last_value' || STAT_OPS.includes(a.op)) s += ` of ${a.value}`;
   if (a.op === 'count_distinct') s += a.value ? ` of ${a.value}` : ' visitors';
   s += ` · ${a.events.join(', ')}`;
   if (a.groupBy) s += ` · by ${a.groupBy.dimension}`;

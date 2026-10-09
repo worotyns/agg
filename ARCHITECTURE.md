@@ -50,7 +50,7 @@ a JSON values API, Prometheus, alerts and an MCP server for AI assistants.
   - `events`: event names it listens to; `where`: an optional filter expression;
   - `explode`: an optional array path; each element becomes `item` (e.g. order lines);
   - `groupBy` / `rankBy`: optional dimensions (`{dimension, expr, label}`), for top-N lists and per-value numbers;
-  - `op`: `count`, `sum` (of `value`), `count_distinct` (of `value`, default the visitor id), `last_value`,
+  - `op`: `count`, `sum` (of `value`), `avg`, `min`, `max`, `p50`, `p95`, `p99` (of `value`), `count_distinct` (of `value`, default the visitor id), `last_value`,
     `last_timestamp`;
   - `visibility`: `private`, `public` or `public_bucketed` (rounded, e.g. "100+") for the public values API.
 - **Window**: `5m`, `1h`, `6h`, `24h` (minute buckets), `7d` (hour buckets), `30d` (day buckets). Every window also has
@@ -102,7 +102,8 @@ read-only connections. Everything sits behind the `store.Storage` interface so a
 
 | Table | Holds |
 |---|---|
-| `buckets` | count and sum per aggregate × granularity × group × member × time bucket |
+| `buckets` | count, sum, min and max per aggregate × granularity × group × member × time bucket |
+| `hist` | log-scaled histogram bins (≈2.5% error) per bucket, for `p50`/`p95`/`p99` |
 | `distinct_members` | member hashes per aggregate × granularity × group × bucket (exact distinct counts) |
 | `totals` | all-time count and sum per aggregate and group |
 | `last_values` | latest value and time per aggregate and group |

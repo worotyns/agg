@@ -35,7 +35,7 @@ scrape_configs:
 
 | Metric | Type | Labels | |
 |---|---|---|---|
-| `agg_value` | gauge | `site, aggregate, window` | window value of count / sum / count_distinct aggregates |
+| `agg_value` | gauge | `site, aggregate, window` | window value of count / sum / avg / min / max / percentile / count_distinct aggregates |
 | `agg_dimension_value` | gauge | `site, aggregate, window, <dimension>` | the same per group value (top K / allowlist only) |
 | `agg_events_total` | counter | `site, aggregate` | all-time count of `count` aggregates (since creation or reset) |
 | `agg_dimension_events_total` | counter | `site, aggregate, <dimension>` | the same per group value |

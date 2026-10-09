@@ -318,6 +318,8 @@ agg.track('purchase', { order_id: 'A-1001', value: 120, currency: 'EUR' }, 'A-10
       <fieldset><legend>Page views</legend>
         <label class="check"><input type="checkbox" checked=${cfg.pageViews} onChange=${(e) => set('pageViews', e.target.checked)} />
           <span>Send a <code>page_view</code> automatically on every page and SPA navigation (path without query string, external referrer host)</span></label>
+        <label class="check"><input type="checkbox" checked=${cfg.pageTime} onChange=${(e) => set('pageTime', e.target.checked)} />
+          <span>Send a <code>page_leave</code> with the time the page was visible (<code>props.ms</code>) when the tab is hidden or the visitor navigates away; use it with Average, Maximum or p95 aggregates</span></label>
       </fieldset>
       <fieldset><legend>Privacy</legend>
         <div class="field-label">Property names always removed on the server, at any depth</div>

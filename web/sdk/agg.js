@@ -18,6 +18,8 @@
 
   var cfg = null, endpoint = '', site = '', queue = [], inflight = 0, timer = null, delay = 0;
   var consent = null, vid = null, lastPath = null, referrer = null, pending = [];
+  // Page time: visible milliseconds of the current page, sent as page_leave when it is hidden or navigated away from.
+  var timePath = null, shownAt = null, shownMs = 0;
 
   function qkey() { return 'agg_q_' + site; }
   function persist() {
@@ -38,19 +40,19 @@
   function allowed() { return cfg && (!cfg.requireConsent || consent === true); }
 
   // Page context sent with every event; the server adds browser, os and device from the User-Agent.
-  function meta(withReferrer) {
-    var m = { path: w.location.pathname };
+  function meta(withReferrer, path) {
+    var m = { path: path || w.location.pathname };
     if (w.navigator && w.navigator.language) m.language = w.navigator.language;
     if (withReferrer && referrer) m.referrer = referrer;
     return m;
   }
 
-  function track(name, props, id, withReferrer) {
+  function track(name, props, id, withReferrer, path) {
     name = norm(name);
     if (!name) return;
-    if (!cfg) { pending.push([name, props, id, withReferrer]); return; }
+    if (!cfg) { pending.push([name, props, id, withReferrer, path]); return; }
     if (cfg.requireConsent && consent === false) return;
-    var ev = { name: name, ts: Date.now(), meta: meta(withReferrer) };
+    var ev = { name: name, ts: Date.now(), meta: meta(withReferrer, path) };
     if (id != null && id !== '') ev.id = String(id);
     if (props && typeof props === 'object') {
       var json = JSON.stringify(props);
@@ -112,10 +114,23 @@
     persist();
   }
 
+  // leaveTime sends the visible time spent on the current page since the last call (one event per visible stretch).
+  function leaveTime() {
+    if (!cfg || !cfg.pageTime || timePath === null) return;
+    var now = Date.now(), ms = shownMs + (shownAt === null ? 0 : now - shownAt);
+    shownMs = 0;
+    shownAt = d.visibilityState === 'hidden' ? null : now;
+    if (ms > 0) track('page_leave', { ms: Math.round(ms) }, null, false, timePath);
+  }
+
+  function onHide() { leaveTime(); shownAt = null; flushOnHide(); }
+
   function page() {
     var path = w.location.pathname;
     if (path === lastPath) return;
     var first = lastPath === null;
+    if (timePath !== null && timePath !== path) leaveTime();
+    if (timePath !== null) timePath = path;
     lastPath = path;
     track('page_view', null, null, first);
   }
@@ -127,8 +142,11 @@
       h.pushState = function () { var r = orig.apply(h, arguments); setTimeout(page, 0); return r; };
       w.addEventListener('popstate', page);
     }
-    w.addEventListener('pagehide', flushOnHide);
-    d.addEventListener('visibilitychange', function () { if (d.visibilityState === 'hidden') flushOnHide(); });
+    w.addEventListener('pagehide', onHide);
+    d.addEventListener('visibilitychange', function () {
+      if (d.visibilityState === 'hidden') onHide();
+      else if (shownAt === null) shownAt = Date.now();
+    });
     w.addEventListener('online', function () { delay = 0; schedule(0); });
   }
 
@@ -142,15 +160,19 @@
     }
     var saved = store(function (s) { return JSON.parse(s.getItem(qkey()) || '[]'); });
     if (saved && saved.length) queue = saved.concat(queue); // events an earlier page could not deliver
+    if (cfg.pageTime) {
+      timePath = w.location.pathname;
+      shownAt = d.visibilityState === 'hidden' ? null : Date.now();
+    }
     watch();
     if (cfg.pageViews) page();
     var p = pending;
     pending = [];
-    for (var i = 0; i < p.length; i++) track(p[i][0], p[i][1], p[i][2], p[i][3]);
+    for (var i = 0; i < p.length; i++) track(p[i][0], p[i][1], p[i][2], p[i][3], p[i][4]);
     if (queue.length) schedule(DEBOUNCE);
   }
 
-  var DEFAULTS = { visitorId: true, pageViews: true, requireConsent: false };
+  var DEFAULTS = { visitorId: true, pageViews: true, pageTime: true, requireConsent: false };
 
   var api = {
     _loaded: true,

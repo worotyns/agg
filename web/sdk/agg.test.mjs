@@ -13,7 +13,7 @@ function browser({ path = '/p/1', referrer = '', storage = {}, beacon = true } =
   const listeners = {};
   const requests = [];
   const beacons = [];
-  const env = { status: 202, fail: false };
+  const env = { status: 202, fail: false, now: Date.now() };
   const win = {
     location: { pathname: path, hostname: 'shop.example.com' },
     history: { pushState(_s, _t, url) { win.location.pathname = url.split('?')[0]; } },
@@ -29,7 +29,7 @@ function browser({ path = '/p/1', referrer = '', storage = {}, beacon = true } =
   };
   const doc = { referrer, currentScript: null, visibilityState: 'visible', addEventListener(t, f) { (listeners[t] ||= []).push(f); } };
   const ctx = {
-    window: win, document: doc, URL, JSON, Date, Math, Object, Array, String, encodeURIComponent, Promise,
+    window: win, document: doc, URL, JSON, Date: Object.assign(class extends Date {}, { now: () => env.now }), Math, Object, Array, String, encodeURIComponent, Promise,
     Blob: class { constructor(parts) { this.text = parts.join(''); } },
     setTimeout: (f, ms) => { timers.push({ f, ms }); return timers.length; }, clearTimeout: () => {},
   };
@@ -40,6 +40,9 @@ function browser({ path = '/p/1', referrer = '', storage = {}, beacon = true } =
     // runs pending timers and lets promises settle; returns the delays that were scheduled
     async tick() { const t = timers.splice(0); for (const x of t) x.f(); await new Promise((r) => setImmediate(r)); return t.map((x) => x.ms); },
     sent() { return requests.flatMap((r) => r.body.events); },
+    advance(ms) { env.now += ms; },
+    setVisible(v) { doc.visibilityState = v ? 'visible' : 'hidden'; for (const f of listeners.visibilitychange || []) f(); },
+    leaves() { return beacons.flatMap((b) => b.events).filter((e) => e.name === 'page_leave').map((e) => ({ ms: e.props.ms, path: e.meta.path })); },
     init(config = {}) { win.agg.init({ site: 'pk_1', endpoint: 'https://agg.test/', config: { ...CONFIG, ...config } }); },
   });
 }
@@ -188,4 +191,49 @@ test('events tracked before init are kept', async () => {
   env.init();
   await env.tick();
   assert.deepEqual(env.sent().map((e) => e.name), ['early']);
+});
+
+test('page time: visible milliseconds are sent as page_leave when the page is hidden, background time is not counted', () => {
+  const env = browser({ path: '/docs' });
+  env.init({ pageTime: true });
+  env.advance(5000);
+  env.setVisible(false);
+  assert.deepEqual(env.leaves(), [{ ms: 5000, path: '/docs' }]);
+  env.advance(600000); // tab in the background
+  env.setVisible(true);
+  env.advance(1500);
+  env.setVisible(false);
+  assert.deepEqual(env.leaves(), [{ ms: 5000, path: '/docs' }, { ms: 1500, path: '/docs' }]);
+});
+
+test('page time: pagehide right after visibilitychange does not send a second event', () => {
+  const env = browser();
+  env.init({ pageTime: true });
+  env.advance(2000);
+  env.setVisible(false);
+  for (const f of env.listeners.pagehide) f();
+  assert.equal(env.leaves().length, 1);
+});
+
+test('page time: SPA navigation closes the previous page with its own path', async () => {
+  const env = browser({ path: '/a' });
+  env.init({ pageViews: true, pageTime: true });
+  env.advance(3000);
+  env.win.history.pushState(null, '', '/b');
+  await env.tick();
+  env.advance(2000);
+  env.setVisible(false);
+  assert.deepEqual(env.leaves(), [{ ms: 3000, path: '/a' }, { ms: 2000, path: '/b' }]);
+});
+
+test('page time: nothing is sent when disabled or without time on the page', () => {
+  const off = browser();
+  off.init({ pageTime: false });
+  off.advance(4000);
+  off.setVisible(false);
+  assert.deepEqual(off.leaves(), []);
+  const none = browser();
+  none.init({ pageTime: true });
+  none.setVisible(false);
+  assert.deepEqual(none.leaves(), []);
 });

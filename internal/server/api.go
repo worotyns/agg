@@ -436,7 +436,7 @@ func (s *Server) aggregateValues(w http.ResponseWriter, r *http.Request) {
 			ws = append(ws, windowValue{win.Name, cur, prev, change(cur, prev)})
 		}
 		out["windows"] = ws
-		if a.Op != model.OpCountDistinct {
+		if a.Op.HasTotal() {
 			t, err := s.q.TotalValue(ctx, a, part, member)
 			if err != nil {
 				s.fail(w, err)

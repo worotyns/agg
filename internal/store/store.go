@@ -7,17 +7,60 @@ package store
 import (
 	"context"
 	"errors"
+	"math"
 
 	"github.com/worotyns/agg/internal/model"
 )
 
 var ErrNotFound = errors.New("not found")
 
-// Counter is a count and a sum, the state of COUNT and SUM aggregates.
+// Counter is a count and a sum, the state of COUNT and SUM aggregates. Min and Max are only kept by the min and
+// max operations (and are meaningful only when Count > 0).
 type Counter struct {
 	Count int64   `json:"count"`
 	Sum   float64 `json:"sum"`
+	Min   float64 `json:"-"`
+	Max   float64 `json:"-"`
 }
+
+// Add merges o into c, keeping the smallest Min and the largest Max of the non-empty sides.
+func (c *Counter) Add(o *Counter) {
+	if c.Count > 0 && o.Count > 0 {
+		c.Min, c.Max = math.Min(c.Min, o.Min), math.Max(c.Max, o.Max)
+	} else if o.Count > 0 {
+		c.Min, c.Max = o.Min, o.Max
+	}
+	c.Count += o.Count
+	c.Sum += o.Sum
+}
+
+// HistKey addresses one histogram bin of a percentile aggregate (see model.HistIndex).
+type HistKey struct {
+	Agg    int64
+	Gran   model.Gran
+	Bucket int64
+	Part   string
+	Member string
+	Idx    int
+}
+
+// HistRow is a histogram bin of one time bucket, for series.
+type HistRow struct {
+	Bucket int64
+	Idx    int
+	Count  int64
+}
+
+// TopBy selects the column a top-N query ranks by.
+type TopBy int
+
+const (
+	ByCount TopBy = iota
+	BySum
+	ByAvg
+	ByMin // smallest first
+	ByMax
+)
 
 type BucketKey struct {
 	Agg    int64
@@ -73,6 +116,7 @@ type EventQuery struct {
 
 type Batch struct {
 	Buckets  map[BucketKey]*Counter
+	Hist     map[HistKey]int64
 	Distinct map[DistinctKey]struct{}
 	Last     map[PartKey]LastValue // Member is always ""
 	Totals   map[PartKey]*Counter
@@ -85,6 +129,7 @@ type Batch struct {
 func NewBatch() *Batch {
 	return &Batch{
 		Buckets:  map[BucketKey]*Counter{},
+		Hist:     map[HistKey]int64{},
 		Distinct: map[DistinctKey]struct{}{},
 		Last:     map[PartKey]LastValue{},
 		Totals:   map[PartKey]*Counter{},
@@ -95,7 +140,7 @@ func NewBatch() *Batch {
 }
 
 func (b *Batch) Empty() bool {
-	return len(b.Buckets) == 0 && len(b.Distinct) == 0 && len(b.Last) == 0 && len(b.Totals) == 0 &&
+	return len(b.Buckets) == 0 && len(b.Hist) == 0 && len(b.Distinct) == 0 && len(b.Last) == 0 && len(b.Totals) == 0 &&
 		len(b.Labels) == 0 && len(b.Matched) == 0 && len(b.Dedupe) == 0 && len(b.Raw) == 0
 }
 
@@ -112,6 +157,8 @@ type TopRow struct {
 	Label string  `json:"label,omitempty"`
 	Count int64   `json:"count"`
 	Sum   float64 `json:"sum"`
+	Min   float64 `json:"-"`
+	Max   float64 `json:"-"`
 	TS    int64   `json:"ts,omitempty"`
 }
 
@@ -119,6 +166,8 @@ type Point struct {
 	Bucket int64   `json:"t"`
 	Count  int64   `json:"count"`
 	Sum    float64 `json:"sum"`
+	Min    float64 `json:"min"`
+	Max    float64 `json:"max"`
 }
 
 type EventNameCount struct {
@@ -170,7 +219,11 @@ type Storage interface {
 	CountDistinct(ctx context.Context, agg int64, g model.Gran, from, to int64, part string) (int64, error)
 	Last(ctx context.Context, agg int64, part string) (LastValue, bool, error)
 	Total(ctx context.Context, agg int64, part, member string) (Counter, error)
-	TopBuckets(ctx context.Context, agg int64, g model.Gran, from, to int64, level Level, part string, bySum bool, limit int) ([]TopRow, error)
+	TopBuckets(ctx context.Context, agg int64, g model.Gran, from, to int64, level Level, part string, by TopBy, limit int) ([]TopRow, error)
+	// Hist returns the histogram of a window, sorted by bin; TopHist the histograms of every group (or rank) value.
+	Hist(ctx context.Context, agg int64, g model.Gran, from, to int64, part, member string) ([]model.HistBin, error)
+	TopHist(ctx context.Context, agg int64, g model.Gran, from, to int64, level Level, part string) (map[string][]model.HistBin, error)
+	SeriesHist(ctx context.Context, agg int64, g model.Gran, from, to int64, part, member string) ([]HistRow, error)
 	TopDistinct(ctx context.Context, agg int64, g model.Gran, from, to int64, limit int) ([]TopRow, error)
 	TopLast(ctx context.Context, agg int64, limit int) ([]TopRow, error)
 	TopTotals(ctx context.Context, agg int64, limit int) ([]TopRow, error)

@@ -38,15 +38,39 @@ func (q *Querier) WindowValue(ctx context.Context, a model.Aggregate, w model.Wi
 	case model.OpCount:
 		c, err := q.St.SumBuckets(ctx, a.ID, w.Gran, from, to, part, member)
 		return float64(c.Count), err
+	case model.OpAvg, model.OpMin, model.OpMax:
+		c, err := q.St.SumBuckets(ctx, a.ID, w.Gran, from, to, part, member)
+		return statValue(a.Op, c), err
+	}
+	if p, ok := a.Op.Quantile(); ok {
+		bins, err := q.St.Hist(ctx, a.ID, w.Gran, from, to, part, member)
+		return model.Quantile(bins, p), err
 	}
 	return 0, fmt.Errorf("%s has no windows", a.Op)
 }
 
-// TotalValue is the all-time value (since creation or the last reset) of a COUNT or SUM aggregate.
+// statValue is avg, min or max of a counter; an empty counter (no events in the window) is 0.
+func statValue(op model.Op, c store.Counter) float64 {
+	if c.Count == 0 {
+		return 0
+	}
+	switch op {
+	case model.OpMin:
+		return c.Min
+	case model.OpMax:
+		return c.Max
+	}
+	return c.Sum / float64(c.Count)
+}
+
+// TotalValue is the all-time value (since creation or the last reset) of a COUNT, SUM or AVG aggregate.
 func (q *Querier) TotalValue(ctx context.Context, a model.Aggregate, part, member string) (float64, error) {
 	c, err := q.St.Total(ctx, a.ID, part, member)
-	if a.Op == model.OpSum {
+	switch a.Op {
+	case model.OpSum:
 		return c.Sum, err
+	case model.OpAvg:
+		return statValue(a.Op, c), err
 	}
 	return float64(c.Count), err
 }
@@ -102,7 +126,7 @@ func VariableNames(a model.Aggregate) []string {
 	for _, w := range model.Windows {
 		out = append(out, a.Name+"_prev_"+w.Name)
 	}
-	if a.Op != model.OpCountDistinct {
+	if a.Op.HasTotal() {
 		out = append(out, a.Name+"_total")
 	}
 	return out
@@ -152,7 +176,7 @@ func (s *Scope) AggregateFor(name string) (model.Aggregate, Variable, bool) {
 	if a.Op.Windowed() == (v.Window == "" && !v.Total) {
 		return a, v, false
 	}
-	if v.Total && a.Op == model.OpCountDistinct {
+	if v.Total && !a.Op.HasTotal() {
 		return a, v, false
 	}
 	return a, v, true
@@ -249,9 +273,15 @@ func (q *Querier) Top(ctx context.Context, a model.Aggregate, w model.Window, by
 		rows, err = q.St.TopDistinct(ctx, a.ID, w.Gran, from, to, limit)
 	case a.RankBy != nil && by == a.RankBy.Dimension:
 		kind = 'm'
-		rows, err = q.St.TopBuckets(ctx, a.ID, w.Gran, from, to, store.LevelMember, dims[a.GroupBy.Dimension], a.Op == model.OpSum, limit)
+		if _, ok := a.Op.Quantile(); ok {
+			return q.topQuantile(ctx, a, w, store.LevelMember, dims[a.GroupBy.Dimension], limit)
+		}
+		rows, err = q.St.TopBuckets(ctx, a.ID, w.Gran, from, to, store.LevelMember, dims[a.GroupBy.Dimension], topBy(a.Op), limit)
 	case by == a.GroupBy.Dimension:
-		rows, err = q.St.TopBuckets(ctx, a.ID, w.Gran, from, to, store.LevelPart, "", a.Op == model.OpSum, limit)
+		if _, ok := a.Op.Quantile(); ok {
+			return q.topQuantile(ctx, a, w, store.LevelPart, "", limit)
+		}
+		rows, err = q.St.TopBuckets(ctx, a.ID, w.Gran, from, to, store.LevelPart, "", topBy(a.Op), limit)
 	default:
 		return nil, fmt.Errorf("aggregate %s has no dimension %q", a.Name, by)
 	}
@@ -272,10 +302,65 @@ func (q *Querier) Top(ctx context.Context, a model.Aggregate, w model.Window, by
 		switch a.Op {
 		case model.OpSum:
 			it.Value = r.Sum
+		case model.OpAvg, model.OpMin, model.OpMax:
+			it.Value = statValue(a.Op, store.Counter{Count: r.Count, Sum: r.Sum, Min: r.Min, Max: r.Max})
 		case model.OpLastValue, model.OpLastTimestamp:
 			it.Value = float64(r.TS / 1000)
 		}
 		out = append(out, it)
+	}
+	return out, nil
+}
+
+func topBy(op model.Op) store.TopBy {
+	switch op {
+	case model.OpSum:
+		return store.BySum
+	case model.OpAvg:
+		return store.ByAvg
+	case model.OpMin:
+		return store.ByMin
+	case model.OpMax:
+		return store.ByMax
+	}
+	return store.ByCount
+}
+
+// topQuantile ranks the group (or rank) values of a percentile aggregate by their percentile, highest first.
+func (q *Querier) topQuantile(ctx context.Context, a model.Aggregate, w model.Window, level store.Level, part string, limit int) ([]TopItem, error) {
+	from, to := w.Range(q.Now(), false)
+	hists, err := q.St.TopHist(ctx, a.ID, w.Gran, from, to, level, part)
+	if err != nil {
+		return nil, err
+	}
+	p, _ := a.Op.Quantile()
+	out := make([]TopItem, 0, len(hists))
+	for key, bins := range hists {
+		out = append(out, TopItem{Key: key, Value: model.Quantile(bins, p)})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Value != out[j].Value {
+			return out[i].Value > out[j].Value
+		}
+		return out[i].Key < out[j].Key
+	})
+	if len(out) > limit {
+		out = out[:limit]
+	}
+	kind := byte('p')
+	if level == store.LevelMember {
+		kind = 'm'
+	}
+	keys := make([]string, len(out))
+	for i, it := range out {
+		keys[i] = it.Key
+	}
+	labels, err := q.St.Labels(ctx, a.ID, kind, keys)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		out[i].Label = labels[out[i].Key]
 	}
 	return out, nil
 }
@@ -338,8 +423,20 @@ func (q *Querier) Series(ctx context.Context, a model.Aggregate, r Range, part, 
 	from := to - (n-1)*step
 	var pts []store.Point
 	var err error
+	var hists map[int64][]model.HistBin
 	if a.Op == model.OpCountDistinct {
 		pts, err = q.St.SeriesDistinct(ctx, a.ID, r.Gran, from, to, part)
+	} else if _, ok := a.Op.Quantile(); ok {
+		var rows []store.HistRow
+		if rows, err = q.St.SeriesHist(ctx, a.ID, r.Gran, from, to, part, member); err == nil {
+			hists = map[int64][]model.HistBin{}
+			for _, h := range rows {
+				hists[h.Bucket] = append(hists[h.Bucket], model.HistBin{Idx: h.Idx, Count: h.Count})
+				if len(hists[h.Bucket]) == 1 {
+					pts = append(pts, store.Point{Bucket: h.Bucket})
+				}
+			}
+		}
 	} else {
 		pts, err = q.St.SeriesBuckets(ctx, a.ID, r.Gran, from, to, part, member)
 	}
@@ -354,8 +451,15 @@ func (q *Querier) Series(ctx context.Context, a model.Aggregate, r Range, part, 
 	for t := from; t <= to; t += step {
 		p := byT[t]
 		v := float64(p.Count)
-		if a.Op == model.OpSum {
+		switch a.Op {
+		case model.OpSum:
 			v = p.Sum
+		case model.OpAvg, model.OpMin, model.OpMax:
+			v = statValue(a.Op, store.Counter{Count: p.Count, Sum: p.Sum, Min: p.Min, Max: p.Max})
+		default:
+			if pq, ok := a.Op.Quantile(); ok {
+				v = model.Quantile(hists[t], pq)
+			}
 		}
 		out = append(out, Point{T: t, V: v})
 	}

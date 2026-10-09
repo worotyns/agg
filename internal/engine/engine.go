@@ -512,7 +512,7 @@ func (e *Engine) applyLocked(b *store.Batch, r *Rule, ev model.Event, at time.Ti
 			t.Count++
 			t.Sum += c.Value
 			switch r.Agg.Op {
-			case model.OpCount, model.OpSum:
+			case model.OpCount, model.OpSum, model.OpAvg, model.OpMin, model.OpMax, model.OpP50, model.OpP95, model.OpP99:
 				for _, g := range grans {
 					bk := store.BucketKey{Agg: agg, Gran: g, Bucket: g.Floor(at), Part: l[0], Member: l[1]}
 					cnt := b.Buckets[bk]
@@ -520,8 +520,10 @@ func (e *Engine) applyLocked(b *store.Batch, r *Rule, ev model.Event, at time.Ti
 						cnt = &store.Counter{}
 						b.Buckets[bk] = cnt
 					}
-					cnt.Count++
-					cnt.Sum += c.Value
+					cnt.Add(&store.Counter{Count: 1, Sum: c.Value, Min: c.Value, Max: c.Value})
+					if _, ok := r.Agg.Op.Quantile(); ok {
+						b.Hist[store.HistKey{Agg: agg, Gran: g, Bucket: bk.Bucket, Part: l[0], Member: l[1], Idx: model.HistIndex(c.Value)}]++
+					}
 				}
 			case model.OpCountDistinct:
 				for _, g := range grans {
@@ -573,16 +575,15 @@ func (e *Engine) writeBatch(ctx context.Context, b *store.Batch) error {
 
 // merge adds src into dst.
 func merge(dst, src *store.Batch) {
-	addC := func(m map[store.BucketKey]*store.Counter, k store.BucketKey, c *store.Counter) {
-		if d := m[k]; d != nil {
-			d.Count += c.Count
-			d.Sum += c.Sum
+	for k, c := range src.Buckets {
+		if d := dst.Buckets[k]; d != nil {
+			d.Add(c)
 		} else {
-			m[k] = c
+			dst.Buckets[k] = c
 		}
 	}
-	for k, c := range src.Buckets {
-		addC(dst.Buckets, k, c)
+	for k, n := range src.Hist {
+		dst.Hist[k] += n
 	}
 	for k := range src.Distinct {
 		dst.Distinct[k] = struct{}{}
@@ -594,8 +595,7 @@ func merge(dst, src *store.Batch) {
 	}
 	for k, c := range src.Totals {
 		if d := dst.Totals[k]; d != nil {
-			d.Count += c.Count
-			d.Sum += c.Sum
+			d.Add(c)
 		} else {
 			dst.Totals[k] = c
 		}
